@@ -5,7 +5,7 @@ Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`�
 
 ## v0.1 기준
 
-**KT-8 검증을 완료한 현재 상태를 v0.1로 지정합니다.** KT-0~KT-8의 기능과
+**KT-8 검증을 완료한 현재 상태를 v0.1로 지정합니다.** KT-0 ~ KT-8의 기능과
 KT-7.1 hardening을 포함하며, 실제 backend는 Framework R1~R5 + R4.1 + R2B.1을 기반으로 합니다.
 Application/Element 탐색, Topic Echo, Parameter 편집, Service Call 및
 다중 Application의 identity·stale 처리가 이 버전의 범위입니다.
