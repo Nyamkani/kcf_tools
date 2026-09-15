@@ -1,7 +1,7 @@
 # KCF Tool v0.1
 
 KT-8 Generic Cross-Application Validation을 완료한 현재 작업 상태를
-**KCF Tool v0.1**로 지정한다. KT-0~KT-8 및 KT-7.1 hardening이 포함된다.
+**KCF Tool v0.1**로 지정한다. KT-0–KT-8 및 KT-7.1 hardening이 포함된다.
 이 버전 지정은 Tool의 기준이며, 외부 KSS Control Framework의 버전을 변경하지 않는다.
 
 ## 포함 기능
@@ -34,7 +34,7 @@ stale 오류 처리를 확인했다. KT-8에서는 Tool production 코드와 KCF
 
 ## 호환성 및 실행
 
-실제 backend에는 Framework **R1~R5 + R4.1 + R2B.1**이 필요하다.
+실제 backend에는 Framework **R1–R5 + R4.1 + R2B.1**이 필요하다.
 검증 대상은 `/tmp/kcf-r1-introspection`의 `feature/introspection` 개발 상태이며,
 배포용 정확한 Framework commit/tag는 아직 확정하지 않았다.
 

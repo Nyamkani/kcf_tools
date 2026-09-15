@@ -113,14 +113,14 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 ## v0.1 — 현재 상태 버전 지정
 
 - KT-8 검증 완료 상태를 KCF Tool v0.1 기준으로 지정했습니다.
-- KT-0~KT-8 및 KT-7.1 hardening을 포함하며, Framework R1~R5 + R4.1 + R2B.1과 연동합니다.
+- KT-0–KT-8 및 KT-7.1 hardening을 포함하며, Framework R1–R5 + R4.1 + R2B.1과 연동합니다.
 - Application/Element Explorer, Topic Echo, Parameter Viewer/Editor, Service Call 및 identity/stale 처리를 포함합니다.
 - README에 버전을 명시하고 [v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)에 검증 결과, 호환성 및 제한을 정리했습니다.
 - 이번 버전 지정은 문서에 반영했으며 git tag 생성, commit/push 및 배포는 수행하지 않았습니다.
 
 ## v0.1 검증 상태
 
-- Framework: R1~R5, R4.1, R2B.1 및 lifecycle·supervision·Supervisor loss·Reset/recovery·SystemStatus·IPC·Integration PASS.
+- Framework: R1–R5, R4.1, R2B.1 및 lifecycle·supervision·Supervisor loss·Reset/recovery·SystemStatus·IPC·Integration PASS.
 - Tool: KT-8 generic 다중 Application 검증 1/1 PASS, 기존 회귀 10/10 PASS, KCF 없는 GUI 3/3 및 backend-only 1/1 PASS. KT-7 실제 다중 Application GUI는 R2B.1 단계에서 PASS.
 - SHM format은 3, Service protocol은 2를 유지합니다.
 - scope 적용에는 Supervisor와 child 바이너리를 함께 rebuild/restart해야 합니다.

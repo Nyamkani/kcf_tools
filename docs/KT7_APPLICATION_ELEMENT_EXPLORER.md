@@ -72,7 +72,7 @@ cmake --build build-kt7-no-kcf -j4
 ctest --test-dir build-kt7-no-kcf --output-on-failure
 ```
 
-Regression: 기존 KT-3~KT-6 포함 실제 연결 구성 **9/9 PASS** (5.66초),
+Regression: 기존 KT-3–KT-6 포함 실제 연결 구성 **9/9 PASS** (5.66초),
 KCF 없는 GUI 구성 **3/3 PASS**, KCF 없는 backend-only 구성 **1/1 PASS**.
 초기화 경합 수정 후 실제 Explorer/Reset 테스트 **5회 연속 PASS**.
 위 PASS는 지원되는 경로의 회귀 결과이며, 실제 두 Bringup 동시 실행 요구의 PASS를 의미하지 않습니다.
