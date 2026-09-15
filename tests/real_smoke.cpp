@@ -42,11 +42,17 @@ int main(int argc,char** argv) {
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});
     assert(connection->text()=="Connection: Connected");
     assert(window.findChild<QTabWidget*>()->count()==6);
+    window.findChild<QListWidget*>("elementsList")->setCurrentRow(0);
+    assert(window.findChild<QLabel*>("elementHeartbeat")->text()=="N/A");
+    assert(window.findChild<QLabel*>("topicFrequency")->text()=="N/A");
+    assert(window.findChild<QLabel*>("topicSequence")->text()=="N/A");
     auto* parameters=window.findChild<QListWidget*>("parametersList");
     assert(parameters->count()==2); parameters->setCurrentRow(0);
     assert(!window.findChild<QLineEdit*>("parameterEditor")->isEnabled());
     start->click(); assert(timer->isActive());
     wait([&]{return fields->rowCount()==7;});
+    assert(window.findChild<QLabel*>("topicSequence")->text()!="N/A");
+    assert(window.findChild<QLabel*>("topicFrequency")->text()=="N/A");
     assert(fields->item(0,2)->text()=="7" && fields->item(1,2)->text()=="1.25");
     assert(fields->item(6,0)->text()=="values[3]" && fields->item(6,2)->text()=="8");
     assert(::kill(static_cast<pid_t>(fixture.processId()),SIGUSR1)==0);

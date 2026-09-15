@@ -45,6 +45,44 @@ struct KcfBackend::Impl {
     kcf::IntrospectionClient client;
     std::vector<ApplicationInfo> applications;std::vector<ElementInfo> elements;
     std::vector<Record<TopicInfo>> topics;std::vector<Record<ParameterInfo>> parameters;std::vector<Record<ServiceInfo>> services;
+    static int DiscoveryError(int result){return result==-ENOENT || result==-ESRCH ? -ESTALE : result;}
+    template<class T> int ValidateEndpoint(const Record<T>& record,kcf::EndpointKind kind,kcf::EndpointRole role){
+        const auto& cached=record.model;
+        if(cached.identity.runtime.pid!=record.runtime.pid ||
+           cached.identity.runtime.process_start_ticks!=record.runtime.process_start_ticks)return -ESTALE;
+        std::vector<kcf::EndpointInfo> current;
+        const int result=client.ListEndpoints(record.runtime,current);
+        if(result)return DiscoveryError(result);
+        for(const auto& endpoint:current)if(endpoint.registration_id==cached.identity.registration_id){
+            return endpoint.kind==kind && endpoint.role==role && cached.name==endpoint.name &&
+                cached.type_id==endpoint.type_id && cached.payload_size==endpoint.payload_size ? 0 : -ESTALE;
+        }
+        return -ESTALE;
+    }
+    int ValidateRegistration(const Record<TopicInfo>& record){
+        if(record.model.role!="PUBLISHER" && record.model.role!="SUBSCRIBER")return -ESTALE;
+        return ValidateEndpoint(record,kcf::EndpointKind::TOPIC,record.model.role=="PUBLISHER"?
+            kcf::EndpointRole::PUBLISHER:kcf::EndpointRole::SUBSCRIBER);
+    }
+    int ValidateRegistration(const Record<ParameterInfo>& record){
+        if(record.model.role!="OWNER" && record.model.role!="CLIENT")return -ESTALE;
+        return ValidateEndpoint(record,kcf::EndpointKind::PARAMETER,record.model.role=="OWNER"?
+            kcf::EndpointRole::PARAMETER_OWNER:kcf::EndpointRole::PARAMETER_CLIENT);
+    }
+    int ValidateRegistration(const Record<ServiceInfo>& record){
+        const auto& cached=record.model;
+        if(cached.identity.runtime.pid!=record.runtime.pid ||
+           cached.identity.runtime.process_start_ticks!=record.runtime.process_start_ticks)return -ESTALE;
+        std::vector<kcf::ServiceInfo> current;
+        const int result=client.ListServices(record.runtime,current);
+        if(result)return DiscoveryError(result);
+        for(const auto& service:current)if(service.registration_id==cached.identity.registration_id){
+            return cached.name==service.name && cached.port==service.port && cached.service_id==service.service_id &&
+                cached.request_type_id==service.request_type_id && cached.response_type_id==service.response_type_id &&
+                cached.request_size==service.request_size && cached.response_size==service.response_size ? 0 : -ESTALE;
+        }
+        return -ESTALE;
+    }
     int Type(const kcf::RuntimeInfo& runtime,std::uint64_t id,std::uint64_t size,kcf::TypeDescriptor& d){if(!id)return -ENOTSUP;int r=client.GetType(runtime,id,d);if(r)return r;return d.type_id==id&&d.payload_size==size&&kcf::ValidateTypeDescriptor(d)?0:-EPROTOTYPE;}
 };
 KcfBackend::KcfBackend():impl_(std::make_unique<Impl>()){}
@@ -100,14 +138,16 @@ int KcfBackend::StartTopicEcho(const EndpointIdentity& id){return Guard([&]{
     CloseTopicRead();
     auto* record=Find(impl_->topics,id);if(!record)return -ENOENT;
     if(record->model.role!="PUBLISHER")return -ENOTSUP;
+    int r=impl_->ValidateRegistration(*record);if(r)return r;
     auto prepared=std::make_unique<Impl::PreparedTopic>();
     // Open a process lifetime handle before public GetType validates start ticks.
     // poll(pidfd) never waits and cannot mistake a reused PID for this runtime.
     prepared->pidfd=static_cast<int>(::syscall(SYS_pidfd_open,id.runtime.pid,0));
     if(prepared->pidfd<0)return -errno;
-    int r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,prepared->descriptor);
+    r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,prepared->descriptor);
     if(r)return r;
     r=prepared->reader.Open(record->model.name,prepared->descriptor);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
     prepared->identity=id;impl_->prepared=std::move(prepared);return 0;
 });}
 void KcfBackend::StopTopicEcho(){impl_->prepared.reset();}
@@ -130,13 +170,19 @@ int KcfBackend::ReadTopicEcho(DataSnapshot& output){
 }
 int KcfBackend::ReadTopicLatest(const EndpointIdentity& id,DataSnapshot& output){return Guard([&]{
     auto* record=Find(impl_->topics,id);if(!record)return -ENOENT;
+    int r=impl_->ValidateRegistration(*record);if(r)return r;
     kcf::TypeDescriptor descriptor;
-    int r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,descriptor);if(r)return r;
+    r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,descriptor);if(r)return r;
     kcf::DynamicTopicReader reader;r=reader.Open(record->model.name,descriptor);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
     kcf::DynamicPayload bytes;r=reader.ReadLatest(bytes);return r?r:detail::Decode(descriptor,bytes,output);
 });}
-int KcfBackend::GetParameter(const EndpointIdentity& id,DataSnapshot& output){return Guard([&]{auto* record=Find(impl_->parameters,id);if(!record)return -ENOENT;kcf::TypeDescriptor d;int r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,d);if(r)return r;
-    kcf::DynamicParameterClient client;r=client.Open(record->model.name,d);if(r)return r;kcf::DynamicPayload bytes;r=client.Get(bytes);return r?r:detail::Decode(d,bytes,output);});}
+int KcfBackend::GetParameter(const EndpointIdentity& id,DataSnapshot& output){return Guard([&]{auto* record=Find(impl_->parameters,id);if(!record)return -ENOENT;
+    int r=impl_->ValidateRegistration(*record);if(r)return r;
+    kcf::TypeDescriptor d;r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,d);if(r)return r;
+    kcf::DynamicParameterClient client;r=client.Open(record->model.name,d);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
+    kcf::DynamicPayload bytes;r=client.Get(bytes);return r?r:detail::Decode(d,bytes,output);});}
 int KcfBackend::GetParameter(const std::string& name,ParameterInfo& output){return Guard([&]{EndpointIdentity id;int r=Select(impl_->parameters,name,"OWNER",id);if(r)return r;auto* record=Find(impl_->parameters,id);auto model=record->model;
     r=GetParameter(id,model.snapshot);if(r)return r;model.type_name=model.snapshot.type_name;model.value=Display(model.snapshot);record->model=model;output=std::move(model);return 0;});}
 int KcfBackend::ValidateParameter(const EndpointIdentity& id,const DataSnapshot& value){return Guard([&]{
@@ -149,8 +195,11 @@ int KcfBackend::ValidateParameter(const EndpointIdentity& id,const DataSnapshot&
 int KcfBackend::SetParameter(const EndpointIdentity& id,const DataSnapshot& value){return Guard([&]{auto* record=Find(impl_->parameters,id);if(!record)return -ENOENT;if(!record->model.type_id)return -ENOTSUP;if(!record->model.writable)return -EPERM;
     kcf::TypeDescriptor d;int r=impl_->Type(record->runtime,record->model.type_id,record->model.payload_size,d);if(r)return r;
     // Validate the full input before opening storage. Preserve non-field bytes.
-    kcf::DynamicPayload bytes;r=detail::Encode(d,value,bytes);if(r)return r;kcf::DynamicParameterClient client;r=client.Open(record->model.name,d);if(r)return r;
-    kcf::DynamicPayload seed;r=client.Get(seed);if(r)return r;r=detail::Encode(d,value,bytes,&seed);return r?r:client.Set(bytes);});}
+    kcf::DynamicPayload bytes;r=detail::Encode(d,value,bytes);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
+    kcf::DynamicParameterClient client;r=client.Open(record->model.name,d);if(r)return r;
+    kcf::DynamicPayload seed;r=client.Get(seed);if(r)return r;r=detail::Encode(d,value,bytes,&seed);if(r)return r;
+    r=impl_->ValidateRegistration(*record);return r?r:client.Set(bytes);});}
 int KcfBackend::SetParameter(const std::string& name,const std::string& text){return Guard([&]{EndpointIdentity id;int r=Select(impl_->parameters,name,"OWNER",id);if(r)return r;const auto* record=Find(impl_->parameters,id);if(!record->model.type_id)return -ENOTSUP;if(!record->model.writable)return -EPERM;if(!record->model.text_editable)return -ENOTSUP;
     DataSnapshot value;r=GetParameter(id,value);if(r)return r;value.fields[0].value=text;return SetParameter(id,value);});}
 int KcfBackend::ValidateService(const EndpointIdentity& id,const DataSnapshot& request){return Guard([&]{
@@ -161,7 +210,11 @@ int KcfBackend::ValidateService(const EndpointIdentity& id,const DataSnapshot& r
     kcf::DynamicPayload bytes;return detail::Encode(req,request,bytes);
 });}
 int KcfBackend::CallService(const EndpointIdentity& id,const DataSnapshot& request,DataSnapshot& output,std::uint32_t timeout,std::uint32_t retries){return Guard([&]{auto* record=Find(impl_->services,id);if(!record)return -ENOENT;const auto& s=record->model;kcf::TypeDescriptor req,res;int r=impl_->Type(record->runtime,s.request_type_id,s.request_size,req);if(r)return r;r=impl_->Type(record->runtime,s.response_type_id,s.response_size,res);if(r)return r;
-    kcf::DynamicPayload bytes,response;r=detail::Encode(req,request,bytes);if(r)return r;kcf::DynamicServiceClient client;r=client.Open(s.port,s.service_id,req,res,timeout,retries);if(r)return r;r=client.Call(bytes,response);return r?r:detail::Decode(res,response,output);});}
+    kcf::DynamicPayload bytes,response;r=detail::Encode(req,request,bytes);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
+    kcf::DynamicServiceClient client;r=client.Open(s.port,s.service_id,req,res,timeout,retries);if(r)return r;
+    r=impl_->ValidateRegistration(*record);if(r)return r;
+    r=client.Call(bytes,response);return r?r:detail::Decode(res,response,output);});}
 int KcfBackend::GetTypeTemplate(const RuntimeIdentity& identity,std::uint64_t type_id,DataSnapshot& output){return Guard([&]{
     if(!type_id)return -ENOTSUP;
     if(std::none_of(impl_->elements.begin(),impl_->elements.end(),[&](const auto& e){return e.identity==identity;}))return -ENOENT;

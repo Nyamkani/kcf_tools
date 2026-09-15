@@ -17,10 +17,8 @@ template<class T> std::string Read(const std::byte* bytes){T v;std::memcpy(&v,by
     return out.str();}
 template<class T> int Write(const std::string& text,std::byte* bytes){T value{};if(text.empty())return -EINVAL;
     if constexpr(std::is_floating_point_v<T>){
-        if(text=="nan"||text=="-nan")value=std::numeric_limits<T>::quiet_NaN();
-        else if(text=="inf")value=std::numeric_limits<T>::infinity();
-        else if(text=="-inf")value=-std::numeric_limits<T>::infinity();
-        else {std::istringstream in(text);in.imbue(std::locale::classic());in>>std::noskipws>>value;if(!in||!in.eof()||!std::isfinite(value))return -ERANGE;}
+        std::istringstream in(text);in.imbue(std::locale::classic());in>>std::noskipws>>value;
+        if(!in||!in.eof()||!std::isfinite(value))return -ERANGE;
     }else{
         using Wide=std::conditional_t<std::is_signed_v<T>,std::int64_t,std::uint64_t>;Wide n{};
         const auto r=std::from_chars(text.data(),text.data()+text.size(),n);

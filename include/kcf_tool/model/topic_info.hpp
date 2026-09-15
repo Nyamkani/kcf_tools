@@ -18,5 +18,7 @@ struct TopicInfo {
     std::string role{};
     std::uint64_t type_id{0};
     std::string diagnostic_type_name{};
+    bool frequency_available{false};
+    bool sequence_available{false};
 };
 }

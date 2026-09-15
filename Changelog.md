@@ -93,10 +93,35 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - 기존 child의 `SystemStatusSubscriber::Open()`을 유지했습니다. 외부 observer는 `OpenForApplication(pid, start_ticks)`로 대상을 지정합니다.
 - **Tool 코드 수정 없이 실제 Application A·B와 Standalone 동시 실행을 확인하여 KT-7 최종 PASS로 전환했습니다.**
 
-## 현재 검증 상태
+## KT-7.1 — Pre-v0.1 Hardening
+
+- 실제 Topic/Parameter/Service 접근 전후에 cached registration identity와 현재 registry를 재검증합니다.
+- stale registration은 `-ESTALE`로 거부하며, 정상 Echo polling과 기존 R4.1 storage 보호는 유지합니다.
+- Parameter/Service float 입력을 finite 값으로 제한하고, 미측정 heartbeat/frequency 및 sample 이전 sequence를 `N/A`로 표시합니다.
+- README의 KT-7 상태를 최종 PASS로 동기화하고 Framework revision·rebuild 및 외부 SystemStatus observer 계약을 명시했습니다.
+
+## KT-8 — Generic Cross-Application Validation
+
+- Tool/Core 바깥의 `/tmp/kcf_generic_validation`에 서로 다른 타입을 사용하는 Alpha·Beta Application과 Standalone Runtime을 작성했습니다.
+- 기존 Tool 코드 수정 없이 동시 discovery, PID + start_ticks membership, 같은 이름의 Supervisor instance 구분을 검증했습니다.
+- descriptor 기반 Topic Echo, Parameter scalar·array 편집과 typed readback/watcher, 서로 다른 Service 입력·응답을 검증했습니다.
+- Application 간 상태·IPC 격리, Reset 세대 교체, Endpoint 재등록, 종료·재시작 및 stale 접근 처리를 확인했습니다.
+- KT-8 통합 테스트 1/1, 기존 Tool 10/10, KCF-less GUI 3/3·backend 1/1, Framework 회귀 모두 PASS입니다.
+- 기존 회귀는 KT-8 프로세스 종료 후 순차 실행했습니다. Tool production 및 KCF/Bringup 소스는 시작 시점의 해시와 동일하며 mecanum도 수정하지 않았습니다.
+- 결과 보고서를 추가하고 README에 독립 프로젝트 빌드, 자동 검증 및 Application과 Tool의 수동 실행 방법을 정리했습니다.
+
+## v0.1 — 현재 상태 버전 지정
+
+- KT-8 검증 완료 상태를 KCF Tool v0.1 기준으로 지정했습니다.
+- KT-0~KT-8 및 KT-7.1 hardening을 포함하며, Framework R1~R5 + R4.1 + R2B.1과 연동합니다.
+- Application/Element Explorer, Topic Echo, Parameter Viewer/Editor, Service Call 및 identity/stale 처리를 포함합니다.
+- README에 버전을 명시하고 [v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)에 검증 결과, 호환성 및 제한을 정리했습니다.
+- 이번 버전 지정은 문서에 반영했으며 git tag 생성, commit/push 및 배포는 수행하지 않았습니다.
+
+## v0.1 검증 상태
 
 - Framework: R1~R5, R4.1, R2B.1 및 lifecycle·supervision·Supervisor loss·Reset/recovery·SystemStatus·IPC·Integration PASS.
-- Tool: R2B.1 Framework에 연결한 기존 회귀 9/9 PASS, 별도 KT-7 실제 다중 Application GUI 검증 PASS.
+- Tool: KT-8 generic 다중 Application 검증 1/1 PASS, 기존 회귀 10/10 PASS, KCF 없는 GUI 3/3 및 backend-only 1/1 PASS. KT-7 실제 다중 Application GUI는 R2B.1 단계에서 PASS.
 - SHM format은 3, Service protocol은 2를 유지합니다.
 - scope 적용에는 Supervisor와 child 바이너리를 함께 rebuild/restart해야 합니다.
 - Graph/Launch와 별도 dynamic callback monitor는 미구현 상태입니다.
@@ -110,6 +135,8 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - [KT-5 Parameter Viewer / Editor](docs/KT5_PARAMETER_VIEWER_EDITOR.md)
 - [KT-6 Service Call UI](docs/KT6_SERVICE_CALL_UI.md)
 - [KT-7 최초 결과 및 당시 제한](docs/KT7_APPLICATION_ELEMENT_EXPLORER.md)
-- [R2B.1 및 KT-7 최종 PASS 보고서](/tmp/kcf-r1-introspection/examples/introspection/R2B1.md)
+- R2B.1 및 KT-7 최종 PASS 보고서: Framework checkout의 `examples/introspection/R2B1.md` (별도 로컬 프로젝트 문서).
+- [KT-7.1 Pre-v0.1 Hardening](docs/KT7_1_PRE_V01_HARDENING.md)
+- [KT-8 Generic Cross-Application Validation](docs/KT8_GENERIC_CROSS_APPLICATION_VALIDATION.md)
 
 KT-7의 기존 보고서는 수정하지 않은 과거 기록이며, 현재 최종 상태는 R2B.1 검증 결과를 따릅니다.

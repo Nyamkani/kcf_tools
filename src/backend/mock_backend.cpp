@@ -23,10 +23,11 @@ MockBackend::MockBackend()
           {"/mecanum/motor/wheel_radius_mm", "double", "41.0", true},
           {"/mecanum/motor/odom_period_ms", "uint32", "15", true},
           {"/mecanum/motor/serial_port", "string", "/dev/ttyUSB1", false}} {
-    for(auto& e:elements_){e.identity={e.pid,1};e.supervisor={12000,1};e.application_name=GetApplicationInfo().name;}
+    for(auto& e:elements_){e.identity={e.pid,1};e.supervisor={12000,1};e.application_name=GetApplicationInfo().name;e.heartbeat_available=true;}
     for(std::size_t i=0;i<topics_.size();++i){
         auto& t=topics_[i];t.identity={{12001+static_cast<std::int32_t>(i),1},i+1};
         t.role="PUBLISHER";t.type_id=0x4d4f434b0000ULL+i+1;
+        t.frequency_available=true;t.sequence_available=true;
     }
     for(std::size_t i=0;i<parameters_.size();++i){
         auto& p=parameters_[i];p.identity={{12001,1},100+i};p.role="OWNER";

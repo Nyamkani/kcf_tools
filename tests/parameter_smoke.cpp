@@ -78,6 +78,10 @@ int main(int argc,char** argv){
         assert(backend->sets==0 && status->text().startsWith("Invalid input:"));
         assert(current("gain")=="5");revert->click();
     }
+    for(const auto* bad:{"nan","-nan","inf","-inf","NaN","Infinity","1e9999"}){
+        input("ratio")->setText(bad);apply->click();
+        assert(backend->sets==0 && status->text().startsWith("Invalid input:"));revert->click();
+    }
     const auto service=backend->real.QueryServices()[0];kcf_tool::DataSnapshot request,response;
     assert(backend->real.GetTypeTemplate(service.identity.runtime,service.request_type_id,request)==0);
     const auto watch=[&](unsigned count){wait([&]{assert(backend->real.CallService(service.identity,request,response)==0);return std::stoul(Field(response,"watches"))>=count;});};
@@ -103,12 +107,17 @@ int main(int argc,char** argv){
     input("gain")->setText("99");apply->click();
     assert(get_countdown==0 && backend->sets==3 && backend->last_set==-ESTALE);
     assert(input("gain")->text()=="99" && current("gain")=="66" && !apply->isEnabled());
-    assert(status->text().contains("Parameter was recreated"));
+    assert(status->text().contains("Parameter is stale"));
     assert(backend->real.CallService(service.identity,request,response)==0);
     assert(Field(response,"gain")=="88" && Field(response,"old_gain")=="66");
-    revert->click();value_refresh->click();assert(current("gain")=="88");
+    revert->click();value_refresh->click();
+    assert(status->text().contains("Parameter is stale") && current("gain")=="66");
+    refresh->click();auto* parameters=window.findChild<QListWidget*>("parametersList");
+    assert(parameters->currentRow()==-1);
+    for(int i=0;i<parameters->count();++i)if(parameters->item(i)->text().contains("[OWNER"))parameters->setCurrentRow(i);
+    assert(current("gain")=="88");
     fixture.terminate();assert(fixture.waitForFinished(10000)&&fixture.exitCode()==0);
-    value_refresh->click();assert(status->text().contains("failed") && !apply->isEnabled());
+    value_refresh->click();assert(status->text().contains("Parameter is stale") && !apply->isEnabled());
     refresh->click();assert(window.findChild<QListWidget*>("parametersList")->count()==0);
     window.close();std::cout<<"PASS KT5: validation before Set, arrays, fresh overlay, readback, watcher, same-process stale Set, external update, disappearance\n";
 }

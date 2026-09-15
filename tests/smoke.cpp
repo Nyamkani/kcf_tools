@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
     QApplication app(argc, argv);
     auto backend = std::make_unique<kcf_tool::MockBackend>();
     auto* mock = backend.get();
+    Check(mock->GetElements()[1].heartbeat_available && mock->GetElements()[1].heartbeat==0, "zero heartbeat is available");
     Check(mock->GetApplicationInfo().name == "mecanum", "application data");
     Check(mock->SetParameter("missing", "value") == -ENOENT, "missing parameter");
     Check(mock->SetParameter("/mecanum/motor/serial_port", "changed") == -EPERM, "read-only backend");
@@ -53,8 +54,11 @@ int main(int argc, char** argv) {
         };
         Check(hasText(0, "mecanum") && hasText(0, "RUNNING"), "application details");
         elements->setCurrentRow(1);
+        Check(window.findChild<QLabel*>("elementHeartbeat")->text()==QString::number(mock->GetElements()[1].heartbeat), "available heartbeat is numeric");
         Check(hasText(1, "kcf_mecanum_imu") && hasText(1, "12002"), "element selection details");
         topics->setCurrentRow(1);
+        Check(window.findChild<QLabel*>("topicFrequency")->text()=="66.7 Hz", "mock frequency available");
+        Check(window.findChild<QLabel*>("topicSequence")->text()!="N/A", "mock sequence available");
         Check(hasText(2, "mecanum::OdometryData") && hasText(2, "localization"), "topic selection details");
         parameters->setCurrentRow(1);
         auto* editor = window.findChild<QLineEdit*>("parameterEditor");

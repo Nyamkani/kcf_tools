@@ -170,6 +170,8 @@ MainWindow::MainWindow(std::unique_ptr<ToolBackend> backend,
     auto* topic_form = new QWidget;
     Fields<7>(topic_form, {"Name", "Type", "Payload Size", "Frequency", "Sequence",
                           "Publishers", "Subscribers"}, topic_fields_);
+    topic_fields_[3]->setObjectName("topicFrequency");
+    topic_fields_[4]->setObjectName("topicSequence");
     details->addWidget(topic_form);
     topic_identity_ = new QLabel;
     topic_identity_->setObjectName("topicIdentity");
@@ -405,7 +407,7 @@ void MainWindow::ShowElement() {
     if (row < 0 || static_cast<std::size_t>(row) >= elements_.size()) return;
     const auto& e = elements_[row];
     const std::array<QString, 7> values{Text(e.name), QString::number(e.pid), Text(e.executable),
-        Text(e.mode), Text(e.state), Number(e.heartbeat), QString::number(e.runtime_error)};
+        Text(e.mode), Text(e.state), e.heartbeat_available?Number(e.heartbeat):QStringLiteral("N/A"), QString::number(e.runtime_error)};
     for (std::size_t i = 0; i < values.size(); ++i) element_fields_[i]->setText(values[i]);
     element_identity_->setText("Runtime: PID "+QString::number(e.identity.pid)+" / start_ticks "+Number(e.identity.process_start_ticks)+
         "\nSupervisor: PID "+QString::number(e.supervisor.pid)+" / start_ticks "+Number(e.supervisor.process_start_ticks)+"\nApplication: "+Text(e.application_name));
@@ -461,7 +463,8 @@ void MainWindow::ShowTopic() {
     if (row < 0 || static_cast<std::size_t>(row) >= topics_.size()) return;
     const auto& t = topics_[row];
     const std::array<QString, 7> values{Text(t.name), Text(t.type_name), Number(t.payload_size) + " bytes",
-        QString::number(t.frequency_hz, 'f', 1) + " Hz", Number(t.sequence), Names(t.publishers), Names(t.subscribers)};
+        t.frequency_available?QString::number(t.frequency_hz, 'f', 1) + " Hz":QStringLiteral("N/A"),
+        t.sequence_available?Number(t.sequence):QStringLiteral("N/A"), Names(t.publishers), Names(t.subscribers)};
     for (std::size_t i = 0; i < values.size(); ++i) topic_fields_[i]->setText(values[i]);
     topic_identity_->setText("Runtime PID " + QString::number(t.identity.runtime.pid) +
         " / start " + Number(t.identity.runtime.process_start_ticks) +
@@ -607,18 +610,18 @@ void MainWindow::ParameterEdited(){
     apply_button_->setEnabled(parameter_dirty_ && !parameter_invalid_ && parameter_row_>=0 && parameters_[parameter_row_].writable);
     parameter_refresh_->setEnabled(!parameter_dirty_ && parameter_row_>=0 && parameters_[parameter_row_].type_id!=0);
     parameter_revert_->setEnabled(parameter_dirty_);
-    if(parameter_invalid_)parameter_status_->setText("Value invalid/stale. Revert edits and Refresh Value before applying.");
+    if(parameter_invalid_)parameter_status_->setText("Value invalid/stale. Revert edits, Refresh, and reselect before applying.");
     else parameter_status_->setText(parameter_dirty_?"Edited — not applied":"Unchanged since last Get");
 }
 void MainWindow::RevertParameter(){
     if(parameter_row_<0)return;
     const auto value=parameter_value_;RenderParameter(value);
-    parameter_status_->setText(parameter_invalid_?"Edits discarded. Refresh Value before applying.":"Edits discarded");
+    parameter_status_->setText(parameter_invalid_?"Edits discarded. Refresh and reselect before applying.":"Edits discarded");
 }
 void MainWindow::ParameterError(const QString& action,int result){
     parameter_invalid_=true;apply_button_->setEnabled(false);
     parameter_fields_[3]->setText("Unavailable until refresh");
-    const auto message=result==-ESTALE?QStringLiteral("Parameter was recreated. Revert edits and Refresh before applying."):
+    const auto message=result==-ESTALE?QStringLiteral("Parameter is stale. Revert edits, Refresh, and reselect before applying."):
         action+": "+ErrorText(result)+" ("+QString::number(result)+"). Value not confirmed; refresh required.";
     parameter_status_->setText(message);statusBar()->showMessage(message);
 }

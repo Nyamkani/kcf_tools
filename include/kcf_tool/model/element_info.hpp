@@ -15,5 +15,6 @@ struct ElementInfo {
     RuntimeIdentity identity{};
     RuntimeIdentity supervisor{};
     std::string application_name{};
+    bool heartbeat_available{false};
 };
 }

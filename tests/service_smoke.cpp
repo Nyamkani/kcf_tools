@@ -59,6 +59,10 @@ int main(int argc,char** argv){
     for(const auto& bad:std::vector<std::pair<QString,QString>>{{"byte","300"},{"small","-200"},{"ratio","abc"}}){
         input(bad.first)->setText(bad.second);call->click();assert(backend->calls==0 && status->text().startsWith("Request rejected:"));input(bad.first)->setText("0");
     }
+    for(const auto* bad:{"nan","-nan","inf","-inf","NaN","Infinity","1e9999"}){
+        input("ratio")->setText(bad);call->click();
+        assert(backend->calls==0 && status->text().startsWith("Request rejected:"));input("ratio")->setText("0");
+    }
     // The GUI fixes array shape; malformed model inputs are rejected by the same validation API.
     const auto service=backend->real.QueryServices()[0];kcf_tool::DataSnapshot malformed;
     assert(backend->real.GetTypeTemplate(service.identity.runtime,service.request_type_id,malformed)==0);

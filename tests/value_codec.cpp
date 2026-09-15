@@ -19,6 +19,16 @@ int main(){using namespace kcf_tool;
     assert((decoded.fields[11].array_values==std::vector<std::string>{"-1","0","32767"}));
     kcf::DynamicPayload encoded;assert(detail::Encode(d,decoded,encoded,&raw)==0&&encoded.bytes==raw.bytes);
     auto sentinel=encoded;
+    for(int field:{9,10})for(const auto* text:{"nan","-nan","inf","-inf","NaN","Infinity","1e9999"}){
+        auto bad=decoded;bad.fields[field].value=text;
+        assert(detail::Encode(d,bad,encoded)==-ERANGE && encoded.bytes==sentinel.bytes);
+    }
+    // Read/display remains observational even though input encoding is finite-only.
+    auto nonfinite=raw;float nan=std::numeric_limits<float>::quiet_NaN();double inf=std::numeric_limits<double>::infinity();
+    std::memcpy(nonfinite.bytes.data()+offsetof(Values,f),&nan,sizeof(nan));
+    std::memcpy(nonfinite.bytes.data()+offsetof(Values,d),&inf,sizeof(inf));
+    DataSnapshot observed;assert(detail::Decode(d,nonfinite,observed)==0);
+    assert(observed.fields[9].value=="nan" && observed.fields[10].value=="inf");
     for(int mode=0;mode<11;++mode){auto bad=decoded;
         switch(mode){case 0:bad.type_id++;break;case 1:bad.type_name="wrong";break;case 2:bad.fields.pop_back();break;case 3:bad.fields[1].name="unknown";break;
         case 4:bad.fields[1].name="b";break;case 5:bad.fields[11].array_values.pop_back();break;case 6:bad.fields[1].value="128";break;case 7:bad.fields[2].value="-1";break;

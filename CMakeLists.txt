@@ -60,6 +60,18 @@ if(KCF_TOOL_BUILD_TESTS AND KCF_SOURCE_DIR)
         target_compile_options(${t} PRIVATE -UNDEBUG)
     endforeach()
     set_tests_properties(kcf_tool_real_backend PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
+    add_executable(kcf_tool_registration_hardening tests/registration_hardening.cpp)
+    target_link_libraries(kcf_tool_registration_hardening PRIVATE kcf_tool_backend kcf_core)
+    target_compile_options(kcf_tool_registration_hardening PRIVATE -UNDEBUG)
+    target_link_options(kcf_tool_registration_hardening PRIVATE
+        "-Wl,--wrap=_ZN3kcf18DynamicTopicReader4OpenERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKNS_14TypeDescriptorE"
+        "-Wl,--wrap=_ZN3kcf22DynamicParameterClient4OpenERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKNS_14TypeDescriptorE"
+        "-Wl,--wrap=_ZN3kcf22DynamicParameterClient3GetERNS_14DynamicPayloadE"
+        "-Wl,--wrap=_ZN3kcf20DynamicServiceClient4OpenEttRKNS_14TypeDescriptorES3_jj"
+        "-Wl,--wrap=_ZN3kcf19IntrospectionClient13ListEndpointsERKNS_11RuntimeInfoERSt6vectorINS_12EndpointInfoESaIS5_EE"
+        "-Wl,--wrap=_ZN3kcf19IntrospectionClient12ListServicesERKNS_11RuntimeInfoERSt6vectorINS_11ServiceInfoESaIS5_EE")
+    add_test(NAME kcf_tool_registration_hardening COMMAND kcf_tool_registration_hardening)
+    set_tests_properties(kcf_tool_registration_hardening PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
     if(KCF_TOOL_BUILD_GUI)
         add_executable(kcf_tool_real_smoke tests/real_smoke.cpp src/ui/main_window.cpp)
         target_link_libraries(kcf_tool_real_smoke PRIVATE kcf_tool_backend Qt6::Widgets)
