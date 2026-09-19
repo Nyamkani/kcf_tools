@@ -1,17 +1,19 @@
-# KCF Tool — v0.1
+# KCF Tool — v0.11
 
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,
 기본 `MockBackend`와 선택적인 실제 `KcfBackend`를 제공합니다.
 
-## v0.1 기준
+## v0.11 기준
 
-**KT-8 검증을 완료한 현재 상태를 v0.1로 지정합니다.** KT-0–KT-8의 기능과
-KT-7.1 hardening을 포함하며, 실제 backend는 Framework R1–R5 + R4.1 + R2B.1을 기반으로 합니다.
+**현재 버전은 KCF Framework v5.1 연동 검증을 완료한 v0.11입니다.**
+v0.1의 KT-0–KT-8 기능과 KT-7.1 hardening을 유지합니다.
 Application/Element 탐색, Topic Echo, Parameter 편집, Service Call 및
 다중 Application의 identity·stale 처리가 이 버전의 범위입니다.
 
-검증 결과와 호환성·제한은 [v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md),
+검증 결과와 호환성·제한은 [v0.11 릴리스 노트](docs/V0_11_RELEASE_NOTES.md),
 누적 작업 내역은 [Changelog](Changelog.md)를 참고하십시오.
+[v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)는 기존 개발 이력으로 보존합니다.
+이번 버전 정리는 문서 기준이며 Git tag나 GitHub Release를 생성하지 않았습니다.
 
 ## 빌드 및 실행
 
@@ -24,19 +26,30 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-실제 backend에는 **R1–R5 + R4.1 + R2B.1** API/ABI를 포함하는 검증된 KCF revision이 필요합니다.
+실제 backend의 기준은 **Nyamkani/kss_control_framework dev의 Framework v5.1**,
+commit **`8360b6e053472ba20acdfc62b7489e33122997ec`**입니다.
 `KCF_SOURCE_DIR`에 임의 revision을 지정하면 호환성을 보장할 수 없습니다. 소스를 복사하지 않습니다.
-현재 검증 대상은 로컬 `feature/introspection` 개발 상태이며, 배포용 정확한 commit/tag는 아직 확정하지 않았습니다.
-Use a KCF revision containing R1-R5, R4.1 and R2B.1. Pin the exact Framework revision for deployment.
+아래 로컬 checkout의 HEAD가 위 SHA와 일치하는지 확인하고, 기존 빌드와 분리한
+새 디렉터리에서 Tool과 외부 Core를 함께 빌드합니다.
+
+Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고 새 바이너리로
+다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
+이전 Core를 계속 사용하며, GUI Refresh로 실행 파일이 교체되지 않습니다.
+`readlink /proc/<GUI_PID>/exe`가 `(deleted)`로 끝나면 rebuild 전 프로세스인지
+확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v51/kcf_tool`로
+비교할 수 있습니다. 구버전 Tool의 `Protocol error` 사례와 정확한 반환 경로는
+[수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 기록했습니다.
 
 ```sh
-cmake -S . -B build-kt3 \
-  -DKCF_SOURCE_DIR=/tmp/kcf-r1-introspection \
+git -C /home/kssvm/workspace/kcf/kss_control_framework rev-parse HEAD
+cmake -S . -B build-v51 \
+  -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
   -DKCF_TOOL_BUILD_TESTS=ON \
+  -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
-cmake --build build-kt3 -j
-./build-kt3/kcf_tool --backend kcf
-ctest --test-dir build-kt3 --output-on-failure
+cmake --build build-v51 -j
+./build-v51/kcf_tool --backend kcf
+ctest --test-dir build-v51 --output-on-failure
 ```
 
 Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
@@ -46,7 +59,33 @@ Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
 자동 통합 테스트는 다른 KCF 프로세스가 없는 환경에서 실행하십시오.
 일반 GUI 사용 시에는 탐색할 Application을 먼저 실행합니다.
 
+### Framework v5.1 연동 검증 결과
+
+2026-09-19, 위 SHA의 Framework로 새 디렉터리
+`/tmp/kcf-tools-v51-8360b6e`에서 Qt GUI와 테스트를 빌드했습니다.
+**자동 테스트: CTest 14/14 PASS**. 실제 Backend, codec, registration hardening,
+Topic Echo, 지연·반복 재연결, Parameter, Service, Explorer 테스트를 포함합니다.
+
+- Depth=1: 기존 payload·배열 표시, Publish 후 Sequence 증가, 재생성 STALE 및 재연결 PASS.
+- Depth=4: Queue 깊이를 초과한 연속 Publish 뒤 최신 payload 읽기, 필드·Sequence 검증,
+  재생성 STALE 및 재연결 PASS. Backend와 Qt Echo smoke를 각각 실행했습니다.
+- Backend/GUI 구현은 수정하지 않고 기존 `ReadLatest()` 경로를 유지했습니다.
+- 자동 GUI 검증은 `QT_QPA_PLATFORM=offscreen` smoke입니다.
+
+**실제 GUI 수동 확인(사용자 확인):** Echo 값 갱신 및 SHM 재생성 후
+Refresh → Publisher 재선택 → Start Echo 재연결을 확인했습니다.
+이는 자동 테스트 14/14와 별도의 확인 결과이며, 이번 문서 정리에서 재테스트하지 않았습니다.
+수동 확인 중의 `Protocol error`는 구버전 GUI 혼용으로 발생했으며
+[진단 문서](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 원인과 비교 재현을 기록했습니다.
+
+실행 로그: `/tmp/kcf-tools-v51-8360b6e/Testing/Temporary/LastTest.log`.
+이 결과는 아래 KT-8의 과거 검증 기록과 구분합니다.
+
 ## KT-8 검증 프로젝트 실행
+
+KT-8 결과는 당시 Framework 기준의 기록입니다. 아래 명령은 독립 프로젝트가
+준비된 환경에서 v5.1로 재빌드하는 방법이며, 이번 v5.1 연동 검증 범위는
+Tool 저장소의 Backend·GUI 자동 테스트와 위에 구분한 실제 GUI 수동 확인입니다.
 
 독립 프로젝트는 현재 `/tmp/kcf_generic_validation`에 있습니다. Tool 저장소에
 포함된 디렉터리가 아니므로 다른 환경에서는 해당 프로젝트를 별도로 준비하고
@@ -55,44 +94,44 @@ Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
 ### 빌드 및 자동 검증
 
 ```sh
-cmake -S /tmp/kcf_generic_validation -B /tmp/kt8-build \
-  -DKCF_SOURCE_DIR=/tmp/kcf-r1-introspection \
+cmake -S /tmp/kcf_generic_validation -B /tmp/kt8-v51-build \
+  -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
   -DKCF_TOOLS_SOURCE_DIR=/home/kssvm/workspace/kcf/kcf_tools \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
-cmake --build /tmp/kt8-build -j4
-ctest --test-dir /tmp/kt8-build --output-on-failure
+cmake --build /tmp/kt8-v51-build -j4
+ctest --test-dir /tmp/kt8-v51-build --output-on-failure
 ```
 
 CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제 GUI를
 조작합니다. 로컬 SHM, loopback UDP 및 프로세스 실행 권한이 필요합니다.
 고정 endpoint 이름과 discovery 개수를 사용하는 테스트이므로 수동 실행 중인
 검증 Application을 모두 종료한 후 실행하고, 기존 Tool 회귀와도 순차 실행합니다.
-결과 로그는 `/tmp/kt8-build/Testing/Temporary/LastTest.log`, typed readback·watcher
+결과 로그는 `/tmp/kt8-v51-build/Testing/Temporary/LastTest.log`, typed readback·watcher
 증거는 테스트가 출력하는 `/tmp/kt8-evidence-*` 디렉터리에 남습니다.
 
 ### Application과 GUI 수동 실행
 
 위 빌드를 완료한 후 각 명령을 별도 터미널에서 실행합니다. 실제 Tool GUI는
-앞의 `build-kt3` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
+앞의 `build-v51` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
 
 ```sh
 # 터미널 1: Alpha — sensor / processor
-/tmp/kt8-build/sensor_suite application /tmp/kt8-manual-alpha /validation
+/tmp/kt8-v51-build/sensor_suite application /tmp/kt8-manual-alpha /validation
 ```
 
 ```sh
 # 터미널 2: Beta — controller / actuator
-/tmp/kt8-build/control_suite application /tmp/kt8-manual-beta /validation
+/tmp/kt8-v51-build/control_suite application /tmp/kt8-manual-beta /validation
 ```
 
 ```sh
 # 터미널 3: Standalone
-/tmp/kt8-build/diagnostic_node
+/tmp/kt8-v51-build/diagnostic_node
 ```
 
 ```sh
 # 터미널 4: Tool 저장소 디렉터리에서 실행
-./build-kt3/kcf_tool --backend kcf
+./build-v51/kcf_tool --backend kcf
 ```
 
 Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
@@ -109,14 +148,14 @@ Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
 endpoint prefix를 분리하여 기존 Publisher의 global SHM ownership과 충돌하지 않게 합니다.
 
 ```sh
-/tmp/kt8-build/control_suite application /tmp/kt8-manual-beta2 /validation/second
+/tmp/kt8-v51-build/control_suite application /tmp/kt8-manual-beta2 /validation/second
 ```
 
 종료할 때는 GUI를 닫고 각 Application/Standalone 터미널에서 Ctrl+C를 누릅니다.
 남아 있는 GUI에서는 Refresh로 종료된 Runtime을 제거합니다. Endpoint 재생성이나
 stale 오류 후에도 Refresh하고 새 endpoint를 선택해 접근합니다.
 
-검증 결과: **KT-8 1/1, 기존 Tool 10/10, KCF-less GUI 3/3·backend 1/1,
+당시 검증 결과: **KT-8 1/1, 기존 Tool 10/10, KCF-less GUI 3/3·backend 1/1,
 Framework 회귀 모두 PASS**. Tool production 코드와 KCF core 변경 없이 검증했습니다.
 세부 항목과 실행 범위는 [KT-8 결과 보고서](docs/KT8_GENERIC_CROSS_APPLICATION_VALIDATION.md)를 참고하십시오.
 
@@ -148,8 +187,11 @@ Framework 회귀 모두 PASS**. Tool production 코드와 KCF core 변경 없이
 - registration 검증은 원자적 보장이 아닙니다. 특히 Service protocol에는 registration_id가 없으므로
   마지막 검증 직후 재등록되는 극단적인 race까지 막지는 못합니다. 발견한 stale metadata로는 Call하지 않습니다.
 
-Current KCF introspection development compatibility: **SHM format = 3, Service protocol = 2**.
-Supervisor와 child는 R2B.1을 포함한 동일 Framework revision으로 **rebuild + restart**해야 합니다.
+Framework v5.1 호환성: **Topic format = 4, Service protocol = 2**.
+Depth=1 및 Depth=4 Topic 모두 `DynamicTopicReader::ReadLatest()`로 최신 payload만
+읽습니다. Tool은 `ReadNext()`나 Subscriber cursor를 사용하지 않으며 Queue 이력을 소비하지 않습니다.
+Topic format 3으로 생성된 기존 storage/바이너리를 format 4와 혼용하지 않습니다.
+Supervisor와 child는 동일 Framework v5.1 revision으로 **rebuild + restart**해야 합니다.
 child 외부의 SystemStatus observer는 `OpenForApplication(supervisor_pid, start_ticks)`로 대상을 지정합니다.
 
 R2B.1 적용 후 서로 다른 이름 및 같은 이름의 Supervisor 동시 실행과

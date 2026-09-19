@@ -1,7 +1,10 @@
 # KCF Tool v0.1
 
-KT-8 Generic Cross-Application Validation을 완료한 현재 작업 상태를
-**KCF Tool v0.1**로 지정한다. KT-0–KT-8 및 KT-7.1 hardening이 포함된다.
+이 문서는 **v0.1 당시의 개발·검증 이력**이다. 현재 버전은
+[v0.11](V0_11_RELEASE_NOTES.md)이며 아래 호환성·검증 수치는 당시 기준으로 보존한다.
+
+KT-8 Generic Cross-Application Validation을 완료한 작업 상태를
+**KCF Tool v0.1**로 지정했다. KT-0–KT-8 및 KT-7.1 hardening이 포함된다.
 이 버전 지정은 Tool의 기준이며, 외부 KSS Control Framework의 버전을 변경하지 않는다.
 
 ## 포함 기능
@@ -61,7 +64,7 @@ stale 오류 처리를 확인했다. KT-8에서는 Tool production 코드와 KCF
 
 ## 버전 기록
 
-현재 상태를 문서상 v0.1로 지정했다. git tag 생성, commit/push 및 배포는
+당시 상태를 문서상 v0.1로 지정했다. git tag 생성, commit/push 및 배포는
 수행하지 않았으며, 기존 작업 변경은 보존했다.
 
 - [누적 Changelog](../Changelog.md)

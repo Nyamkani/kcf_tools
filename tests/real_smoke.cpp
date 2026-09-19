@@ -16,9 +16,10 @@
 #include <cassert>
 
 int main(int argc,char** argv) {
-    QApplication app(argc,argv); assert(argc==2);
+    QApplication app(argc,argv); assert(argc==2||argc==3);
     const QString prefix = "/kt4_qt_"+QString::number(QCoreApplication::applicationPid());
-    QProcess fixture; fixture.start(argv[1],{"--element",prefix}); assert(fixture.waitForStarted());
+    QStringList fixture_args{"--element",prefix};if(argc==3)fixture_args<<"--depth4";
+    QProcess fixture; fixture.start(argv[1],fixture_args); assert(fixture.waitForStarted());
     kcf_tool::MainWindow window(std::make_unique<kcf_tool::KcfBackend>(),"KCF"); window.show();
     auto* refresh=window.findChild<QPushButton*>("refreshButton");
     auto* connection=window.findChild<QLabel*>("connectionStatus");

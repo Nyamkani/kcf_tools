@@ -110,7 +110,7 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - 기존 회귀는 KT-8 프로세스 종료 후 순차 실행했습니다. Tool production 및 KCF/Bringup 소스는 시작 시점의 해시와 동일하며 mecanum도 수정하지 않았습니다.
 - 결과 보고서를 추가하고 README에 독립 프로젝트 빌드, 자동 검증 및 Application과 Tool의 수동 실행 방법을 정리했습니다.
 
-## v0.1 — 현재 상태 버전 지정
+## v0.1 — 기존 개발 기준
 
 - KT-8 검증 완료 상태를 KCF Tool v0.1 기준으로 지정했습니다.
 - KT-0–KT-8 및 KT-7.1 hardening을 포함하며, Framework R1–R5 + R4.1 + R2B.1과 연동합니다.
@@ -118,7 +118,7 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - README에 버전을 명시하고 [v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)에 검증 결과, 호환성 및 제한을 정리했습니다.
 - 이번 버전 지정은 문서에 반영했으며 git tag 생성, commit/push 및 배포는 수행하지 않았습니다.
 
-## v0.1 검증 상태
+## v0.1 당시 검증 상태
 
 - Framework: R1–R5, R4.1, R2B.1 및 lifecycle·supervision·Supervisor loss·Reset/recovery·SystemStatus·IPC·Integration PASS.
 - Tool: KT-8 generic 다중 Application 검증 1/1 PASS, 기존 회귀 10/10 PASS, KCF 없는 GUI 3/3 및 backend-only 1/1 PASS. KT-7 실제 다중 Application GUI는 R2B.1 단계에서 PASS.
@@ -126,6 +126,16 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - scope 적용에는 Supervisor와 child 바이너리를 함께 rebuild/restart해야 합니다.
 - Graph/Launch와 별도 dynamic callback monitor는 미구현 상태입니다.
 - 기존 변경은 보존했으며 commit/push는 수행하지 않았습니다.
+
+## v0.11 — Framework v5.1 연동 검증 완료
+
+- 현재 Tool 버전을 v0.11로 지정하고 v0.1 기록은 기존 개발 이력으로 보존했습니다.
+- Framework 기준은 `Nyamkani/kss_control_framework` dev의 `8360b6e053472ba20acdfc62b7489e33122997ec`입니다.
+- Topic Format 4의 Depth=1/4 latest Echo, payload·Sequence 및 재생성 후 STALE/재연결을 검증했습니다. 기존 `ReadLatest()` 방식을 유지합니다.
+- 자동 검증: 지연·반복 재연결 회귀와 Qt offscreen smoke를 포함하여 **14/14 PASS**입니다.
+- 수동 검증(사용자 확인): 실제 GUI의 값 갱신과 SHM 재생성 후 Refresh·재선택·Echo 재연결을 확인했습니다. 자동 테스트 결과와 구분합니다.
+- 구버전 GUI 혼용에 따른 Protocol error는 TypeRegistry SHM 크기 검사 실패였습니다. [진단 문서](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 근거를 기록했습니다.
+- [v0.11 릴리스 노트](docs/V0_11_RELEASE_NOTES.md)를 추가했습니다. 이번 정리에서는 기능 코드 수정·재테스트·commit/push/tag 생성 및 GitHub Release 생성을 수행하지 않았습니다.
 
 ## 상세 기록
 
@@ -138,5 +148,9 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - R2B.1 및 KT-7 최종 PASS 보고서: Framework checkout의 `examples/introspection/R2B1.md` (별도 로컬 프로젝트 문서).
 - [KT-7.1 Pre-v0.1 Hardening](docs/KT7_1_PRE_V01_HARDENING.md)
 - [KT-8 Generic Cross-Application Validation](docs/KT8_GENERIC_CROSS_APPLICATION_VALIDATION.md)
+- [v0.1 기존 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)
+- [v0.11 릴리스 노트](docs/V0_11_RELEASE_NOTES.md)
+- [Framework v5.1 수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)
 
-KT-7의 기존 보고서는 수정하지 않은 과거 기록이며, 현재 최종 상태는 R2B.1 검증 결과를 따릅니다.
+KT-7의 기존 보고서는 당시 기록이며, KT-7의 최종 PASS는 R2B.1 검증 결과를 따릅니다.
+현재 Tool 버전과 Framework 연동 상태는 위 v0.11 기록을 따릅니다.

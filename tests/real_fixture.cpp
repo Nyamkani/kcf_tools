@@ -21,6 +21,7 @@ volatile sig_atomic_t echo_changed = 0;
 volatile sig_atomic_t echo_unlink = 0;
 volatile sig_atomic_t echo_recreate = 0;
 bool hold_sample=false,service_fixtures=false;
+std::uint32_t topic_depth=1;
 std::atomic<bool> reset_requested{false};
 static_assert(std::atomic<bool>::is_always_lock_free);
 void RequestFixtureReset(int){reset_requested.store(true,std::memory_order_relaxed);}
@@ -60,7 +61,12 @@ struct Element:kcf::ProcessElement {
     std::mutex config_access;kcf::ServiceServer service;std::atomic<unsigned> watches{0};unsigned calls=0;
     Element(std::string p,std::string r):prefix(std::move(p)),remote(std::move(r)){}
     int Setup() override {
-        int r=pub.Create(prefix+"/topic");if(r)return r;
+        int r=pub.Create(prefix+"/topic",topic_depth);if(r)return r;
+        if(topic_depth==4){
+            // Wrap the queue before discovery; latest must skip retained older values.
+            for(std::uint64_t i=0;i<8;++i){r=pub.Publish({100+i,-2.0f,99,{1,1,1,1}});if(r)return r;}
+            r=pub.Publish({7,1.25f,-3,{2,4,6,8}});if(r)return r;
+        }
         r=sub.Create(prefix+"/topic",[](const Sample&){});if(r)return r;
         r=owner.Create(prefix+"/config",{5,true},[&](const Config&){++watches;});if(r)return r;
         r=client.Open(prefix+"/config");if(r)return r;r=legacy.Create(prefix+"/legacy");if(r)return r;
@@ -83,7 +89,7 @@ struct Element:kcf::ProcessElement {
         if(parameter_update){Config value{};assert(client.Get(value)==0);value.gain=66;value.enabled=!value.enabled;value.values[1]+=10;
             assert(client.Set(value)==0);parameter_update=0;std::cout<<"PARAMETER_UPDATED"<<std::endl;}
         if(hold_sample && !echo_changed)return 0;
-        if(echo_recreate){assert(pub.Close()==0 && pub.Unlink()==0 && pub.Create(prefix+"/topic")==0);echo_changed=1;echo_recreate=0;}if(echo_unlink){pub.Unlink();echo_unlink=0;}int r=pub.Publish(echo_changed ? Sample{8,9.5f,12,{10,20,30,40}} : Sample{7,1.25f,-3,{2,4,6,8}});if(r)return r;return legacy.Publish({9});}
+        if(echo_recreate){assert(pub.Close()==0 && pub.Unlink()==0 && pub.Create(prefix+"/topic",topic_depth)==0);echo_changed=1;echo_recreate=0;}if(echo_unlink){pub.Unlink();echo_unlink=0;}int r=pub.Publish(echo_changed ? Sample{8,9.5f,12,{10,20,30,40}} : Sample{7,1.25f,-3,{2,4,6,8}});if(r)return r;return legacy.Publish({9});}
     void Shutdown() override {service.Stop();previous.Close();remote_client.Close();remote_sub.Close();client.Close();owner.Close();owner.Unlink();sub.Close();pub.Close();pub.Unlink();legacy.Close();legacy.Unlink();}
 };
 int main(int argc,char** argv){signal(SIGUSR1,ChangeEcho);signal(SIGUSR2,UnlinkEcho);signal(SIGWINCH,RecreateEcho);signal(SIGTTIN,RecreateParameter);signal(SIGTTOU,UpdateParameter);assert(prctl(PR_SET_PDEATHSIG,SIGTERM)==0);if(argc<3)return 2;std::string mode=argv[1],prefix=argv[2],remote=argc>3?argv[3]:"";
@@ -99,6 +105,7 @@ int main(int argc,char** argv){signal(SIGUSR1,ChangeEcho);signal(SIGUSR2,UnlinkE
         r=application.Run();done=true;reset.join();return r?1:0;
     }
     if(mode=="--supervisor"){bringup::Bringup app;int r=app.Setup("tool_test_application",{{"friendly_element",argv[0],{"--element",prefix,remote}}});return r?1:app.Run();}
+    if(remote=="--depth4"){topic_depth=4;remote.clear();}
     if(remote=="--services"){service_fixtures=true;remote.clear();}
     if(remote=="--no-sample"){hold_sample=true;remote.clear();}
     Element e(prefix,remote);kcf::ProcessRuntime runtime;runtime.SetLoopFrequency(100);return runtime.Run(e)?1:0;

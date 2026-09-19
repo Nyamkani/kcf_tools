@@ -19,24 +19,30 @@ struct Process {pid_t pid;Process(const char* exe,const char* mode,const std::st
     void Stop(){if(pid<=0)return;assert(kill(pid,SIGTERM)==0);int status;assert(waitpid(pid,&status,0)==pid&&WIFEXITED(status)&&WEXITSTATUS(status)==0);pid=-1;}
     ~Process(){if(pid>0){kill(pid,SIGTERM);waitpid(pid,nullptr,0);}}};
 FieldValue& Field(DataSnapshot& s,const std::string& name){for(auto& f:s.fields)if(f.name==name)return f;assert(false);return s.fields[0];}
-int main(int argc,char** argv){assert(argc==2);alarm(90);KcfBackend backend;assert(backend.Refresh()==0);assert(backend.GetConnectionState()==BackendConnectionState::DISCONNECTED);assert(backend.GetElements().empty()&&backend.GetApplications().empty());
+int main(int argc,char** argv){assert(argc==2||argc==3);const bool depth4=argc==3;alarm(90);KcfBackend backend;assert(backend.Refresh()==0);assert(backend.GetConnectionState()==BackendConnectionState::DISCONNECTED);assert(backend.GetElements().empty()&&backend.GetApplications().empty());
     DataSnapshot unchanged{"sentinel",42,1,{}};assert(backend.ReadTopicLatest("missing",unchanged)==-ENOENT&&unchanged.type_name=="sentinel");
     bool called=false;assert(backend.StartTopicMonitor("topic",[&](const auto&){called=true;})==-ENOTSUP&&!called);
-    const auto base="/kt3_"+std::to_string(getpid());Process standalone(argv[1],"--element",base+"_standalone");
+    const auto base="/kt3_"+std::to_string(getpid());Process standalone(argv[1],"--element",base+"_standalone",depth4?"--depth4":"");
     Until([&]{assert(backend.Refresh()==0);return !backend.QueryServices().empty() && backend.GetTopics().size()==3 && backend.GetParameters().size()==2;});assert(backend.GetConnectionState()==BackendConnectionState::CONNECTED);
     auto elements=backend.GetElements();assert(elements.size()==1&&elements[0].mode=="STANDALONE"&&elements[0].application_name=="Standalone");
     TopicInfo topic;assert(backend.GetTopicInfo(base+"_standalone/topic",topic)==0&&topic.role=="PUBLISHER"&&topic.type_id);
     auto old_identity=topic.identity;DataSnapshot sample;Until([&]{int r=backend.ReadTopicLatest(old_identity,sample);assert(r==0||r==-EAGAIN);return r==0;});
     assert(Field(sample,"sequence").value=="7"&&Field(sample,"x").value=="1.25"&&Field(sample,"count").value=="-3");assert((Field(sample,"values").array_values==std::vector<std::string>{"2","4","6","8"}));
+    assert(sample.sequence >= (depth4?9u:1u));
     assert(backend.ReadTopicLatest(base+"_standalone/legacy",unchanged)==-ENOTSUP&&unchanged.type_name=="sentinel");
     // A persistent instance must detect recreation between reads, even though
     // PID/start ticks/name/type/layout are unchanged. A fresh one-shot sees B.
     assert(backend.StartTopicEcho(old_identity)==0);
     DataSnapshot echo;
     for(int i=0;i<20;++i){assert(backend.ReadTopicEcho(echo)==0);assert(Field(echo,"x").value=="1.25");}
+    const auto previous_sequence=echo.sequence;
+    assert(kill(standalone.pid,SIGUSR1)==0);
+    Until([&]{assert(backend.ReadTopicEcho(echo)==0);return Field(echo,"x").value=="9.5";});
+    assert(echo.sequence>previous_sequence && Field(echo,"sequence").value=="8");
+    assert(Field(echo,"count").value=="12" && (Field(echo,"values").array_values==std::vector<std::string>{"10","20","30","40"}));
     assert(kill(standalone.pid,SIGWINCH)==0);
     Until([&]{const int r=backend.ReadTopicEcho(echo);assert(r==0||r==-ESTALE);
-        assert(Field(echo,"x").value=="1.25");return r==-ESTALE;});
+        assert(Field(echo,"x").value=="9.5");return r==-ESTALE;});
     assert(backend.ReadTopicEcho(echo)==-EBADF);
     assert(backend.Refresh()==0);
     assert(backend.GetTopicInfo(base+"_standalone/topic",topic)==0);
