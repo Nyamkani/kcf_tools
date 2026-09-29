@@ -129,13 +129,28 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 
 ## v0.11 — Framework v5.1 연동 검증 완료
 
-- 현재 Tool 버전을 v0.11로 지정하고 v0.1 기록은 기존 개발 이력으로 보존했습니다.
+- 당시 Tool 버전을 v0.11로 지정하고 v0.1 기록은 기존 개발 이력으로 보존했습니다.
 - Framework 기준은 `Nyamkani/kss_control_framework` dev의 `8360b6e053472ba20acdfc62b7489e33122997ec`입니다.
 - Topic Format 4의 Depth=1/4 latest Echo, payload·Sequence 및 재생성 후 STALE/재연결을 검증했습니다. 기존 `ReadLatest()` 방식을 유지합니다.
 - 자동 검증: 지연·반복 재연결 회귀와 Qt offscreen smoke를 포함하여 **14/14 PASS**입니다.
 - 수동 검증(사용자 확인): 실제 GUI의 값 갱신과 SHM 재생성 후 Refresh·재선택·Echo 재연결을 확인했습니다. 자동 테스트 결과와 구분합니다.
 - 구버전 GUI 혼용에 따른 Protocol error는 TypeRegistry SHM 크기 검사 실패였습니다. [진단 문서](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 근거를 기록했습니다.
 - [v0.11 릴리스 노트](docs/V0_11_RELEASE_NOTES.md)를 추가했습니다. 이번 정리에서는 기능 코드 수정·재테스트·commit/push/tag 생성 및 GitHub Release 생성을 수행하지 않았습니다.
+
+## v0.12 — Graph / Remote Discovery / Read-only Detail (2026-09-29)
+
+- 현재 Tool 버전을 v0.12로 지정하고 v0.1·v0.11 개발 이력을 보존했습니다.
+- Qt QGraphicsView/Scene 기반 Graph 탭을 추가했습니다. Runtime identity로 Application·Standalone과 Element·Topic을 연결하며 동일 이름의 여러 registration을 보존합니다.
+- 발견된 Parameter OWNER/CLIENT와 Service SERVER 관계, 표시 toggle·Application 필터, deterministic layout, Zoom/Pan/Fit 및 기존 Element/Topic 화면 이동을 제공합니다.
+- 공개 PeerDiscovery API를 사용하는 비동기 Network observer를 추가했습니다. Host + boot + PID/start_ticks + registration으로 Remote metadata를 구분하며 수동 Refresh로 표시합니다.
+- Remote Host/Application/Element와 Topic·Parameter·Service·Action metadata를 표시합니다. 읽기 전용 상세에서 ONLINE/LOST, 버전, compatibility, capabilities 및 type 정보를 확인합니다.
+- Host·Local/Remote·T/P/S/A 필터를 제공하고, Remote 노드는 기존 Local 쓰기·호출 경로로 연결하지 않습니다. 자체 wire protocol이나 forwarding은 추가하지 않았습니다.
+- 검토에서 Remote 선택 해제·Local 선택 후 이전 상세가 남는 문제를 재현하여 수정하고 회귀 테스트를 추가했습니다.
+- 자동 검증: KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt **6/6 PASS**. 실제 Backend는 loopback, GUI는 offscreen 검증입니다.
+- Framework HEAD는 `8360b6e053472ba20acdfc62b7489e33122997ec`이지만 Network/Action 및 Core의 기존 미커밋 변경이 포함된 working tree 기준입니다. clean v5.1 commit 검증과 구분하며, 이번 Tool 검토에서 Framework 파일은 변경하지 않았습니다.
+- 실제 물리 LAN·데스크톱 수동 검증은 미수행입니다. 외부 Gateway route/statistics·proxy 판별, Remote Set/Call/Goal/Cancel 및 Launch는 미지원입니다.
+- [Graph 기록](docs/GRAPH.md), [Network 관측 및 검토 기록](docs/NETWORK_OBSERVATION.md), [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md)를 연결했습니다.
+- 이번 버전 정리는 문서만 변경했습니다. 재테스트·commit/push/tag 생성 및 GitHub Release 생성은 수행하지 않았습니다.
 
 ## 상세 기록
 
@@ -153,4 +168,4 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - [Framework v5.1 수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)
 
 KT-7의 기존 보고서는 당시 기록이며, KT-7의 최종 PASS는 R2B.1 검증 결과를 따릅니다.
-현재 Tool 버전과 Framework 연동 상태는 위 v0.11 기록을 따릅니다.
+현재 Tool 버전과 Framework 연동 상태는 위 v0.12 기록을 따릅니다.

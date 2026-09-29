@@ -1,4 +1,5 @@
 #include "kcf_tool/ui/main_window.hpp"
+#include "kcf_tool/ui/graph_widget.hpp"
 #include <QFormLayout>
 #include <QTreeWidget>
 #include <QCloseEvent>
@@ -279,6 +280,23 @@ MainWindow::MainWindow(std::unique_ptr<ToolBackend> backend,
     service_status_->setWordWrap(true);details->addWidget(service_status_);
     connect(service_list_,&QListWidget::currentRowChanged,this,&MainWindow::ShowService);
     connect(service_call_,&QPushButton::clicked,this,&MainWindow::CallService);
+    graph_=new GraphWidget;
+    tabs->addTab(graph_,"Graph");
+    graph_->refresh=[this]{Refresh();};
+    graph_->open_element=[this](RuntimeIdentity id){
+        if(service_busy_)return;
+        if(parameter_dirty_){statusBar()->showMessage("Unsaved parameter edits: Apply or Revert before navigating.");return;}
+        for(std::size_t i=0;i<elements_.size();++i)if(elements_[i].identity==id){
+            element_list_->setCurrentRow(static_cast<int>(i));tabs_->setCurrentIndex(1);return;}
+        statusBar()->showMessage("Element is no longer discovered. Refresh Graph.");
+    };
+    graph_->open_topic=[this](EndpointIdentity id){
+        if(service_busy_)return;
+        if(parameter_dirty_){statusBar()->showMessage("Unsaved parameter edits: Apply or Revert before navigating.");return;}
+        for(std::size_t i=0;i<topics_.size();++i)if(topics_[i].identity==id){
+            topic_list_->setCurrentRow(static_cast<int>(i));tabs_->setCurrentIndex(2);return;}
+        statusBar()->showMessage("Topic endpoint is no longer discovered. Refresh Graph.");
+    };
     auto* backend_label = new QLabel("Backend: " + backend_name);
     backend_label->setObjectName("backendStatus");
     backend_label->setTextFormat(Qt::PlainText);
@@ -443,6 +461,7 @@ void MainWindow::UpdateExplorer() {
         if(element_list_->currentRow()==static_cast<int>(i))application_tree_->setCurrentItem(item);
     }
     application_tree_->expandAll();
+    graph_->SetSnapshot(applications_,elements_,topics_,parameters_,services_,backend_->GetNetworkSnapshot());
 }
 void MainWindow::OpenElementEndpoint(QTreeWidgetItem* item) {
     if(service_busy_ || !item || !item->data(0,Qt::UserRole).isValid())return;

@@ -1,4 +1,5 @@
 #pragma once
+#include "kcf_tool/model/network_info.hpp"
 #include "kcf_tool/model/application_info.hpp"
 #include "kcf_tool/model/element_info.hpp"
 #include "kcf_tool/model/topic_info.hpp"
@@ -20,6 +21,8 @@ using TopicDataCallback = std::function<void(const DataSnapshot&)>;
 
 class ToolBackend {
 public:
+    virtual NetworkSnapshot GetNetworkSnapshot() { return {}; }
+
     virtual ~ToolBackend() = default;
     virtual BackendConnectionState GetConnectionState() const = 0;
     // Value-returning discovery APIs have no error channel: inspect connection

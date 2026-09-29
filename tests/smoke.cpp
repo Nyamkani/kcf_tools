@@ -37,8 +37,8 @@ int main(int argc, char** argv) {
         Check(window.findChild<QLabel*>("backendStatus")->text() == "Backend: Mock", "mock backend label");
         Check(window.findChild<QLabel*>("connectionStatus")->text() == "Connection: Connected", "mock connection label");
         auto* tabs = window.findChild<QTabWidget*>();
-        Check(window.isVisible() && tabs->count() == 6, "window and six tabs");
-        const QStringList titles{"Applications", "Elements", "Topics", "Parameters", "Launch", "Services"};
+        Check(window.isVisible() && tabs->count() == 7, "window and seven tabs");
+        const QStringList titles{"Applications", "Elements", "Topics", "Parameters", "Launch", "Services", "Graph"};
         for (int i = 0; i < titles.size(); ++i) {
             tabs->setCurrentIndex(i);
             Check(tabs->tabText(i) == titles[i], "tab title");
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
         disconnected.show();
         Check(disconnected.findChild<QLabel*>("backendStatus")->text() == "Backend: KCF", "KCF backend label");
         Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Connection: Disconnected", "KCF connection label");
-        Check(disconnected.findChild<QTabWidget*>()->count() == 6, "KCF retains tabs");
+        Check(disconnected.findChild<QTabWidget*>()->count() == 7, "KCF retains tabs");
         for (auto* list : disconnected.findChildren<QListWidget*>())
             Check(list->count() == 0, "KCF GUI has no fake data");
         Check(!disconnected.findChild<QLineEdit*>("parameterEditor")->isEnabled(), "KCF editor disabled");

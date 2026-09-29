@@ -3,9 +3,13 @@
 #include <memory>
 
 namespace kcf_tool {
+class NetworkObserver;
 class KcfBackend final : public ToolBackend {
 public:
     KcfBackend();
+    int StartNetwork(const NetworkOptions& = {});
+    void StopNetwork();
+    NetworkSnapshot GetNetworkSnapshot() override;
     ~KcfBackend() override;
     BackendConnectionState GetConnectionState() const override;
     ApplicationInfo GetApplicationInfo() override;
@@ -35,6 +39,7 @@ public:
     int CallService(const EndpointIdentity&, const DataSnapshot&, DataSnapshot&,
                     std::uint32_t timeout_ms=200, std::uint32_t retry_count=2) override;
 private:
+    std::shared_ptr<NetworkObserver> network_;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

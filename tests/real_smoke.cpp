@@ -1,5 +1,6 @@
 #include "kcf_tool/backend/kcf_backend.hpp"
 #include "kcf_tool/ui/main_window.hpp"
+#include "kcf_tool/ui/graph_widget.hpp"
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QLabel>
@@ -42,7 +43,10 @@ int main(int argc,char** argv) {
     };
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});
     assert(connection->text()=="Connection: Connected");
-    assert(window.findChild<QTabWidget*>()->count()==6);
+    auto* graph=dynamic_cast<kcf_tool::GraphWidget*>(window.findChild<QWidget*>("graphTab"));
+    assert(graph && graph->Model().nodes.size()==3 && graph->Model().edges.size()==3);
+    for(const auto& edge:graph->Model().edges)assert(edge.endpoint.runtime.pid==fixture.processId());
+    assert(window.findChild<QTabWidget*>()->count()==7);
     window.findChild<QListWidget*>("elementsList")->setCurrentRow(0);
     assert(window.findChild<QLabel*>("elementHeartbeat")->text()=="N/A");
     assert(window.findChild<QLabel*>("topicFrequency")->text()=="N/A");
@@ -88,6 +92,7 @@ int main(int argc,char** argv) {
     assert(window.statusBar()->currentMessage().startsWith("Echo error:"));
     refresh->click(); assert(connection->text()=="Connection: Disconnected");
     assert(topics->count()==0 && fields->rowCount()==0 && !start->isEnabled());
+    assert(graph->Model().nodes.empty() && graph->Model().edges.empty());
     // Unlink while the owner stays alive: no refresh and no stale mapped value.
     fixture.start(argv[1],{"--element",prefix,"--no-sample"}); assert(fixture.waitForStarted());
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});

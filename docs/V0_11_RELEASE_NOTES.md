@@ -1,6 +1,7 @@
 # KCF Tool v0.11
 
-현재 상태를 **KCF Framework v5.1 연동 검증 완료 버전 v0.11**로 지정한다.
+이 문서는 **KCF Framework v5.1 연동 검증 완료 버전 v0.11** 당시의 기록이다.
+현재 버전은 [v0.12](V0_12_RELEASE_NOTES.md)이며 아래 검증 결과는 당시 기준으로 보존한다.
 [v0.1](V0_1_RELEASE_NOTES.md)은 기존 개발 이력으로 보존한다.
 
 ## Framework 기준과 동작

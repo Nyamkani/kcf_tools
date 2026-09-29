@@ -1,7 +1,7 @@
 # KCF Tool v0.1
 
 이 문서는 **v0.1 당시의 개발·검증 이력**이다. 현재 버전은
-[v0.11](V0_11_RELEASE_NOTES.md)이며 아래 호환성·검증 수치는 당시 기준으로 보존한다.
+[v0.12](V0_12_RELEASE_NOTES.md)이며 아래 호환성·검증 수치는 당시 기준으로 보존한다.
 
 KT-8 Generic Cross-Application Validation을 완료한 작업 상태를
 **KCF Tool v0.1**로 지정했다. KT-0–KT-8 및 KT-7.1 hardening이 포함된다.

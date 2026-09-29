@@ -1,18 +1,22 @@
-# KCF Tool — v0.11
+# KCF Tool — v0.12
 
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,
 기본 `MockBackend`와 선택적인 실제 `KcfBackend`를 제공합니다.
 
-## v0.11 기준
+## v0.12 기준
 
-**현재 버전은 KCF Framework v5.1 연동 검증을 완료한 v0.11입니다.**
-v0.1의 KT-0–KT-8 기능과 KT-7.1 hardening을 유지합니다.
-Application/Element 탐색, Topic Echo, Parameter 편집, Service Call 및
-다중 Application의 identity·stale 처리가 이 버전의 범위입니다.
+**현재 버전은 Graph·Remote Discovery·읽기 전용 Remote 상세를 포함한 v0.12입니다.**
+v0.11의 Application/Element 탐색, Topic Echo, Parameter 편집, Service Call 및
+identity·stale 처리를 유지합니다. Network 관측은 공개 Network API가 있는 Framework
+checkout으로 빌드할 때 제공하며, Remote 쓰기·호출이나 forwarding 기능은 포함하지 않습니다.
 
-검증 결과와 호환성·제한은 [v0.11 릴리스 노트](docs/V0_11_RELEASE_NOTES.md),
+2026-09-29 자동 회귀는 KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt
+**6/6 PASS**입니다. Network 검증은 loopback 및 Qt offscreen 기준이며 실제 물리 LAN과
+데스크톱 수동 조작은 미검증입니다. v0.11의 사용자 Echo 수동 확인과 구분합니다.
+
+검증 결과와 호환성·제한은 [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md),
 누적 작업 내역은 [Changelog](Changelog.md)를 참고하십시오.
-[v0.1 릴리스 노트](docs/V0_1_RELEASE_NOTES.md)는 기존 개발 이력으로 보존합니다.
+[v0.1](docs/V0_1_RELEASE_NOTES.md)과 [v0.11](docs/V0_11_RELEASE_NOTES.md)은 기존 개발 이력으로 보존합니다.
 이번 버전 정리는 문서 기준이며 Git tag나 GitHub Release를 생성하지 않았습니다.
 
 ## 빌드 및 실행
@@ -26,11 +30,13 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-실제 backend의 기준은 **Nyamkani/kss_control_framework dev의 Framework v5.1**,
+기존 Local backend의 v0.11 검증 기준은 **Nyamkani/kss_control_framework dev의 Framework v5.1**,
 commit **`8360b6e053472ba20acdfc62b7489e33122997ec`**입니다.
 `KCF_SOURCE_DIR`에 임의 revision을 지정하면 호환성을 보장할 수 없습니다. 소스를 복사하지 않습니다.
-아래 로컬 checkout의 HEAD가 위 SHA와 일치하는지 확인하고, 기존 빌드와 분리한
-새 디렉터리에서 Tool과 외부 Core를 함께 빌드합니다.
+v0.12 Network 검증에 사용한 checkout의 HEAD도 위 SHA지만, Network/Action 및 Core의
+미커밋 확장을 포함합니다. **HEAD 일치만으로 Network 지원이나 동일한 검증 상태를
+보장하지 않습니다.** `git status`도 확인하고, 기존 빌드와 분리한 새 디렉터리에서
+Tool과 외부 Core를 함께 빌드합니다. Network API가 없는 Framework에서는 Local 기능만 제공합니다.
 
 Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고 새 바이너리로
 다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
@@ -42,6 +48,7 @@ Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고
 
 ```sh
 git -C /home/kssvm/workspace/kcf/kss_control_framework rev-parse HEAD
+git -C /home/kssvm/workspace/kcf/kss_control_framework status --short
 cmake -S . -B build-v51 \
   -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
   -DKCF_TOOL_BUILD_TESTS=ON \
@@ -59,7 +66,7 @@ Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
 자동 통합 테스트는 다른 KCF 프로세스가 없는 환경에서 실행하십시오.
 일반 GUI 사용 시에는 탐색할 Application을 먼저 실행합니다.
 
-### Framework v5.1 연동 검증 결과
+### v0.11 당시 Framework v5.1 연동 검증 결과
 
 2026-09-19, 위 SHA의 Framework로 새 디렉터리
 `/tmp/kcf-tools-v51-8360b6e`에서 Qt GUI와 테스트를 빌드했습니다.
@@ -159,6 +166,52 @@ stale 오류 후에도 Refresh하고 새 endpoint를 선택해 접근합니다.
 Framework 회귀 모두 PASS**. Tool production 코드와 KCF core 변경 없이 검증했습니다.
 세부 항목과 실행 범위는 [KT-8 결과 보고서](docs/KT8_GENERIC_CROSS_APPLICATION_VALIDATION.md)를 참고하십시오.
 
+## Graph 구조 시각화
+
+Graph 탭은 현재 discovery 스냅샷으로 Application별 Element와 Topic 관계를 표시합니다.
+외부 Graphviz 없이 Qt QGraphicsView/QGraphicsScene을 사용합니다.
+
+- 왼쪽: Application별 사각형 Element. 같은 Application 이름도 Supervisor PID/start_ticks로 구분하며 Standalone은 별도 그룹입니다.
+- 오른쪽: 작은 Topic/Parameter endpoint와 개별 Service server 노드. Publisher → Topic → Subscriber 방향으로 연결합니다.
+- 관계의 Element는 `EndpointIdentity.runtime`으로 찾습니다. 표시용 publisher/subscriber 이름 문자열로 추정하지 않습니다.
+- Topics/Parameters/Services toggle과 Application filter(All 포함)로 표시를 조절합니다. 필터는 선택한 Application에 속한 Element와 그 endpoint만 남깁니다.
+- Parameters는 discovery된 OWNER/CLIENT만, Services는 SERVER 등록만 연결합니다. Service client는 추정하지 않습니다.
+- Refresh Graph는 기존 Refresh 경로를 사용합니다. Echo가 중지되며 미저장 Parameter 편집은 Apply/Revert 후 새로고침할 수 있습니다.
+- 휠 또는 +/−로 확대·축소, 빈 배경 드래그로 이동, Fit으로 전체 배치를 봅니다.
+- Element를 더블클릭하거나 선택 후 Enter를 누르면 Elements로 이동합니다. Topic에 여러 endpoint가 있으면 역할·PID/start_ticks·registration 목록에서 선택하여 Topics의 정확한 항목으로 이동합니다.
+
+같은 이름의 Topic/Parameter는 하나의 논리 채널 노드로 묶되 각 discovery registration의
+관계는 유지합니다. 고정된 두 열에 identity/이름 순서로 배치하며 force-directed 배치는
+사용하지 않습니다. 실제 통신 성공 여부, 데이터 전달량, 미발견 client 관계는 추정하지 않습니다.
+Remote metadata 관측은 아래 v0.12 Network 확장으로 제공합니다. [Graph 구현 및 검증](docs/GRAPH.md)을 참고하십시오.
+
+## v0.12 Network 관측
+
+Network API가 포함된 Framework checkout으로 빌드하면 `--backend kcf` 실행 시
+공개 `PeerDiscovery` API를 이용해 LAN peer를 관측합니다. 위 v0.11 기준 SHA의
+Local-only 검증과 구분되는 v0.12 기능이며, Network 확장이 포함된 Framework가 필요합니다.
+
+```sh
+./build/kcf_tool --backend kcf --network-interface 192.168.1.10
+# loopback 테스트: --network-interface 127.0.0.1 --network-port 37651
+# Local 전용: --backend kcf --no-network
+```
+
+- Graph의 Remote Host → Application → Element → T/P/S/A metadata와 읽기 전용
+  상세에서 ONLINE/LOST, 버전, compatibility reason, capabilities, type 정보를 봅니다.
+- 수동 Refresh로 worker snapshot을 표시합니다. Host/Application 필터,
+  Local/Remote·T/P/S/A toggle, 기존 Zoom/Pan/Fit을 제공합니다.
+- Remote endpoint는 Host + boot + PID/start_ticks + registration으로 구분합니다.
+  Local 상세/쓰기/Call 화면으로 연결하지 않습니다. Local 기능은 기존과 같습니다.
+- **다른 Gateway process의 active route/statistics 및 proxy 판별은 현재 미지원**입니다.
+  공개 `ControlNode::GetTopicDiagnostics()`는 해당 객체 내부 상태만 반환하며,
+  Discovery에는 외부 Gateway 진단 조회 경로가 없습니다. 같은 이름/type으로
+  cross-host edge를 만들거나 통계를 0으로 꾸며 표시하지 않습니다.
+- Tool은 forwarding/Gateway가 아닙니다. Remote Set/Call/Goal/Cancel UI도 없습니다.
+
+빌드 요구사항, 현재 제한과 이번 검증은 [Network 관측](docs/NETWORK_OBSERVATION.md)을
+참고하십시오. 실제 물리 LAN 검증과 Framework Virtual LAN의 기존 PASS는 별도입니다.
+
 ## 동작
 
 - Applications 트리는 Supervisor identity별 Application과 소속 Runtime을 표시합니다.
@@ -177,7 +230,7 @@ Framework 회귀 모두 PASS**. Tool production 코드와 KCF core 변경 없이
 - Echo 동안 하나의 reader를 유지하며, R4.1의 SHM 재생성 감지를 사용합니다.
 - Stop Echo, Topic 변경, Refresh, 창 닫기 또는 치명적 읽기 오류 시 polling을 중지합니다.
 - 재생성 감지 후 Refresh와 Start Echo가 필요합니다. 첫 sample 대기는 자동 중지하지 않습니다.
-- Dynamic Monitor API는 계속 `-ENOTSUP`입니다. graph/launch 확장은 미구현입니다.
+- Dynamic Monitor API는 계속 `-ENOTSUP`입니다. Launch 확장은 미구현입니다.
 - Mock의 시연 데이터와 기존 독립 테스트는 유지됩니다.
 - 실제 Open 전후와 Parameter Set / Service Call 직전에 cached registration identity와 현재 registry를 비교합니다.
   사라지거나 바뀐 registration은 `-ESTALE`이며 Refresh 후 새 endpoint를 선택해야 합니다.

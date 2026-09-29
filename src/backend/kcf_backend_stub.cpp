@@ -3,6 +3,9 @@
 
 namespace kcf_tool {
 struct KcfBackend::Impl {};
+int KcfBackend::StartNetwork(const NetworkOptions&) { return -ENOTSUP; }
+void KcfBackend::StopNetwork() {}
+NetworkSnapshot KcfBackend::GetNetworkSnapshot() { return {}; }
 KcfBackend::KcfBackend()=default;
 KcfBackend::~KcfBackend()=default;
 BackendConnectionState KcfBackend::GetConnectionState() const {
