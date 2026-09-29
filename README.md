@@ -17,10 +17,15 @@ checkout으로 빌드할 때 제공하며, Remote 쓰기·호출이나 forwardin
 검증 결과와 호환성·제한은 [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md),
 누적 작업 내역은 [Changelog](Changelog.md)를 참고하십시오.
 [v0.1](docs/V0_1_RELEASE_NOTES.md)과 [v0.11](docs/V0_11_RELEASE_NOTES.md)은 기존 개발 이력으로 보존합니다.
-Tool v0.12는 main의 `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`로 반영되었습니다.
+현재 Tool 기준은 **kcf_tools main / v0.12**입니다.
+`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`는 v0.12 기능 최초 반영 커밋입니다.
 Git tag 및 GitHub Release 생성 여부는 이번 작업에서 확인하지 않았습니다.
 
-2026-09-29 후속 검증에서는 공개 KCF v5.2 `0a3f2a6…`의 수정 없는 Git 추출본으로
+현재 d41fc2f 최종 검증은 수정 없는 독립 Framework 소스에서 새 configure/build 후
+**KCF + Qt 18/18 PASS**, **Mock/stub + Qt 6/6 PASS**입니다. 실제 FrameworkVersion
+5.2.0과 NetworkProtocolVersion 1.0을 검증했습니다. 아래 과거 결과와 구분합니다.
+
+과거 2026-09-29 후속 검증에서는 공개 KCF v5.2 `0a3f2a6…`의 수정 없는 Git 추출본으로
 새 configure/build 후 **KCF + Qt 18/18**, **Mock/stub + Qt 6/6 PASS**를 확인했습니다.
 과거 working tree 결과와 별도이며, 검증 환경과 로그는 [Network 검증 기록](docs/NETWORK_OBSERVATION.md)을 따릅니다.
 
@@ -44,7 +49,9 @@ Network API가 없는 기존 Framework에서는 Local 기능만 제공합니다.
 
 Local v0.11의 과거 검증은 v5.1 `8360b6e053472ba20acdfc62b7489e33122997ec`의
 14/14 결과입니다. v0.12 최초 18/18 검증은 같은 HEAD에 Network 미커밋 확장을 포함한
-working tree에서 수행했습니다. 그 Network 구현은 이후 위 v5.2 커밋으로 dev에 반영됐습니다.
+working tree에서 수행했습니다. 그 Network 구현은 이후 `0a3f2a6`으로 dev에 반영됐고,
+현재 `d41fc2f`에서는 CMake project 및 실제 Network FrameworkVersion이 모두 5.2.0입니다.
+NetworkProtocolVersion은 1.0을 유지합니다.
 과거 결과를 공개 v5.2 커밋의 재검증 결과로 바꾸지 않으며 후속 검증은 별도로 기록합니다.
 
 Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고 새 바이너리로

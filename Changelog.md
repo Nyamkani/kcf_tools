@@ -152,7 +152,7 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - [Graph 기록](docs/GRAPH.md), [Network 관측 및 검토 기록](docs/NETWORK_OBSERVATION.md), [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md)를 연결했습니다.
 - 이번 버전 정리는 문서만 변경했습니다. 재테스트·commit/push/tag 생성 및 GitHub Release 생성은 수행하지 않았습니다.
 
-## v0.12 — 공개 KCF v5.2 기준 정합화 (후속 작업)
+## v0.12 — 공개 KCF v5.2 0a3f2a6 기준 정합화 (과거 후속 작업)
 
 - Tool v0.12 main `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`와 Framework v5.2 dev `0a3f2a630cec209793f9ac6e99107752e9e01283`의 공개 상태를 확인했습니다.
 - README·v0.12 릴리스 노트·Network 문서의 현재 빌드 기준을 공개 KCF v5.2로 정리했습니다. 위 v0.12 최초 검증 및 commit/push 미수행 문구는 당시 작업 기록입니다.
@@ -160,6 +160,15 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - 후속 검증: 공개 `0a3f2a6`의 수정 없는 Git 추출본에서 새 configure/build 및 KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt **6/6 PASS**. 원래 checkout의 동시 외부 변경이 포함된 중간 실행은 제외했으며 [Network 기록](docs/NETWORK_OBSERVATION.md)에 구분했습니다.
 - CMake의 KCF_SOURCE_DIR 도움말만 변경했습니다. header 존재 기반 Network 감지, 기능 코드 및 Framework 소스는 수정하지 않습니다. Tool 버전은 v0.12를 유지합니다.
 - Git tag/GitHub Release 생성 여부는 확인하지 않았으며, 이번 작업에서는 commit/push를 수행하지 않습니다.
+
+## v0.12 — KCF v5.2 d41fc2f 최종 정합화
+
+- 현재 기준은 **kcf_tools main / v0.12**와 KCF `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`입니다. Tool 자신의 SHA는 최초 기능 반영 등 과거 이력으로만 유지합니다.
+- 실제 Framework 연동 테스트 `network_backend`의 FrameworkVersion 기대값을 5.1.0에서 5.2.0으로 수정했습니다. NetworkProtocolVersion 1.0과 `network_graph`의 synthetic 5.1.0 데이터는 유지합니다.
+- 현재형 문서 baseline을 d41fc2f로 정리하고, 과거 0a3f2a6 clean 기준 18/18 및 중간 17/18(실제 5.2.0 / 기대 5.1.0)의 원인 기록을 보존했습니다.
+- d41fc2f 독립 추출본으로 새 configure/build 및 KCF + Qt **18/18 PASS** (24.21초), Framework 없는 Mock/stub + Qt **6/6 PASS** (1.27초)를 확인했습니다. 로그와 조건은 [최종 검증 기록](docs/NETWORK_OBSERVATION.md)을 따릅니다.
+- Framework 원본의 기존 변경은 보존했으며 추출본은 지정 커밋과 동일합니다. `git diff --check`를 통과했습니다.
+- 기능 추가, Framework 수정 및 commit/push는 수행하지 않았습니다. 기존 지원 범위와 미검증 항목은 유지합니다.
 
 ## 상세 기록
 

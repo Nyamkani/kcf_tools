@@ -34,7 +34,7 @@ int main(){
     tool.Refresh();assert(tool.GetNetworkSnapshot().hosts[0].session==s.hosts[0].session);
     const auto key=s.hosts[0].endpoints[0].id;
     assert(key!=s.hosts[1].endpoints[0].id);assert(s.hosts[0].compatibility=="COMPATIBLE");
-    assert(s.hosts[0].framework_version=="5.1.0" && s.hosts[0].network_version=="1.0");
+    assert(s.hosts[0].framework_version=="5.2.0" && s.hosts[0].network_version=="1.0");
     assert(s.hosts[0].capabilities.find("REMOTE_TOPIC")!=std::string::npos);
     assert(s.hosts[0].endpoints[0].diagnostic.find("TYPE_MISMATCH")!=std::string::npos);
     const auto revision=s.hosts[0].revision,session=s.hosts[0].session;

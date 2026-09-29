@@ -95,6 +95,6 @@ identity가 다를 경우에도 identity만 따르며 임의의 추가 Element�
 외부 Gateway route/statistics 조회 API의 한계는 해당 문서에서 별도로 기록한다.
 Remote 점선은 발견된 endpoint의 소유/등록 관계이며 실제 전송이나 호출의 증거가 아니다.
 
-현재 v0.12 Network 빌드 기준은 KCF v5.2 `0a3f2a630cec209793f9ac6e99107752e9e01283`이다.
+현재 v0.12 Network 빌드 기준은 KCF v5.2 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다.
 이는 위 Local Graph 당시 SHA의 교체가 아니다. Remote 최초 검증과 공개 커밋 후속 검증은
 [Network 관측](NETWORK_OBSERVATION.md)에서 구분한다.

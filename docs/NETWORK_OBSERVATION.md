@@ -6,16 +6,38 @@ Framework protocol 및 payload codec은 복제하지 않는다.
 
 ## 현재 공개 기준
 
-Tool v0.12는 `Nyamkani/kcf_tools` main의
-`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`로 반영됐다. 현재 Network 빌드 기준은
+현재 Tool 기준은 **kcf_tools main / v0.12**다.
+`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`는 최초 기능 반영 커밋이다. 현재 Network 빌드 기준은
 `Nyamkani/kss_control_framework` dev의 **KCF v5.2**
-`0a3f2a630cec209793f9ac6e99107752e9e01283`이다. Git tag/GitHub Release 생성 여부는 확인하지 않았다.
+`d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다. Git tag/GitHub Release 생성 여부는 확인하지 않았다.
 
 아래 미커밋 검토 및 최초 18/18·6/6은 공개 커밋 반영 전의 기록이다. 당시 Framework
-Network working tree는 이후 위 v5.2 커밋으로 반영됐으며, 더 이상 미커밋 소스가
+Network working tree는 이후 `0a3f2a6`으로 반영됐으며, 더 이상 미커밋 소스가
 필수라는 의미가 아니다. 후속 공개 커밋 검증은 별도 절에 기록한다.
 
-## 공개 KCF v5.2 후속 검증 (2026-09-29)
+## KCF v5.2 d41fc2f 최종 정합성 검증 (2026-09-29)
+
+현재 기준 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`의 수정 없는 독립 Git archive
+추출본(`/tmp/kcf-published-d41fc2f`)으로 새 configure/build 및 전체 회귀를 실행했다.
+CMake project version과 실제 Network FrameworkVersion은 **5.2.0**,
+NetworkProtocolVersion은 **1.0**이다.
+
+- `tests/network_backend.cpp`: 실제 FrameworkVersion 기대값만 5.1.0 → 5.2.0으로 수정.
+  NetworkProtocolVersion 기대값 1.0 및 `network_graph`의 synthetic 5.1.0 표시 데이터는 유지.
+- KCF + Qt: **18/18 PASS**, 24.21초. PID/mount namespace 및 별도 `/dev/shm` 사용.
+- Framework 없는 Mock/stub + Qt: **6/6 PASS**, 1.27초.
+- 로그: `/tmp/kcf-tools-d41-final/Testing/Temporary/LastTest.log`,
+  `/tmp/kcf-tools-d41-final-no-kcf/Testing/Temporary/LastTest.log`.
+- Framework 원본은 기존 변경을 보존하고, 독립 추출본 215개 파일은 빌드 전후 지정 커밋과
+  일치함을 확인했다. Tool 제품 동작, Graph·Remote 기능 및 지원 범위는 변경하지 않았다.
+- Tool + Virtual LAN 통합, 실제 물리 LAN 및 Remote GUI 수동 검증은 여전히 미수행이다.
+- 이번 작업에서는 commit/push를 수행하지 않았다.
+
+이 결과는 아래 과거 0a3f2a6의 18/18과 별개다. 당시 중간 17/18은 실제 FrameworkVersion
+5.2.0에 대해 Tool이 5.1.0을 기대하여 발생했다. 이후 d41fc2f에서 기본값이 5.2.0으로
+확정됐고 이번에 기대값을 맞춰 재검증했다. 과거 실패·성공 기록은 삭제하지 않는다.
+
+## 과거 공개 0a3f2a6 후속 검증 (2026-09-29)
 
 위 최초 working tree 검증과 별도로 공개 커밋
 `0a3f2a630cec209793f9ac6e99107752e9e01283`의 **수정 없는 Git archive 추출본**으로

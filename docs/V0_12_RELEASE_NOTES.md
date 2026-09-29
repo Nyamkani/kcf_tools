@@ -20,12 +20,13 @@ Network API가 없는 기존 Framework에서는 Local 기능을, Framework 없�
 Mock/disconnected stub을 제공한다. `--no-network`로 관측을 끌 수 있다.
 
 현재 빌드 기준은 `Nyamkani/kss_control_framework` dev에 공개된 KCF v5.2
-`0a3f2a630cec209793f9ac6e99107752e9e01283`이다. Tool v0.12와 Framework v5.2 버전은 독립적이다.
+`d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다. Tool v0.12와 Framework v5.2 버전은 독립적이다.
 
 2026-09-29 최초 Network 검증은 `/home/kssvm/workspace/kcf/kss_control_framework`의
 `8360b6e053472ba20acdfc62b7489e33122997ec` HEAD와 Network/Action 및 Core 미커밋
 확장을 포함한 working tree에서 수행했다. 당시 Framework 215개 파일 해시는 유지됐다.
-그 Network 구현은 이후 위 v5.2 커밋으로 dev에 반영됐다. 아래 최초 검증 결과는 당시
+그 Network 구현은 이후 `0a3f2a6`으로 dev에 반영됐으며, `d41fc2f`에서
+CMake project 및 Network FrameworkVersion 기본값이 5.2.0으로 확정됐다. 아래 최초 검증 결과는 당시
 working tree의 기록이며 공개 v5.2 커밋에서 실행한 결과로 소급 변경하지 않는다.
 
 빌드·실행은 [README](../README.md), Network 설정은
@@ -49,7 +50,29 @@ v0.11의 **14/14 자동 PASS 및 사용자 GUI Echo 값 갱신·SHM 재연결 �
 별도 검증 기록이며, v0.12 Remote 기능의 수동 확인으로 간주하지 않는다.
 최초 버전 문서 정리에서는 기능 수정이나 재테스트를 수행하지 않았다.
 
-## 공개 KCF v5.2 후속 검증 (2026-09-29)
+## KCF v5.2 d41fc2f 최종 정합성 검증 (2026-09-29)
+
+현재 기준 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`의 수정 없는 독립 Git archive
+추출본(`/tmp/kcf-published-d41fc2f`)으로 새 configure/build 및 전체 회귀를 실행했다.
+CMake project version과 실제 Network FrameworkVersion은 **5.2.0**,
+NetworkProtocolVersion은 **1.0**이다.
+
+- `tests/network_backend.cpp`: 실제 FrameworkVersion 기대값만 5.1.0 → 5.2.0으로 수정.
+  NetworkProtocolVersion 기대값 1.0 및 `network_graph`의 synthetic 5.1.0 표시 데이터는 유지.
+- KCF + Qt: **18/18 PASS**, 24.21초. PID/mount namespace 및 별도 `/dev/shm` 사용.
+- Framework 없는 Mock/stub + Qt: **6/6 PASS**, 1.27초.
+- 로그: `/tmp/kcf-tools-d41-final/Testing/Temporary/LastTest.log`,
+  `/tmp/kcf-tools-d41-final-no-kcf/Testing/Temporary/LastTest.log`.
+- Framework 원본은 기존 변경을 보존하고, 독립 추출본 215개 파일은 빌드 전후 지정 커밋과
+  일치함을 확인했다. Tool 제품 동작, Graph·Remote 기능 및 지원 범위는 변경하지 않았다.
+- Tool + Virtual LAN 통합, 실제 물리 LAN 및 Remote GUI 수동 검증은 여전히 미수행이다.
+- 이번 작업에서는 commit/push를 수행하지 않았다.
+
+이 결과는 아래 과거 0a3f2a6의 18/18과 별개다. 당시 중간 17/18은 실제 FrameworkVersion
+5.2.0에 대해 Tool이 5.1.0을 기대하여 발생했다. 이후 d41fc2f에서 기본값이 5.2.0으로
+확정됐고 이번에 기대값을 맞춰 재검증했다. 과거 실패·성공 기록은 삭제하지 않는다.
+
+## 과거 공개 0a3f2a6 후속 검증 (2026-09-29)
 
 위 최초 검증과 별도로 `0a3f2a630cec209793f9ac6e99107752e9e01283`의 수정 없는
 Git archive 추출본에서 새 configure/build를 수행했다.
@@ -69,7 +92,7 @@ Git archive 추출본에서 새 configure/build를 수행했다.
 - 같은 이름/type만으로 cross-host 전송 관계를 추정하지 않는다.
 - Remote Set/Call/Goal/Cancel, payload forwarding, Launch 및 dynamic callback monitor는 미지원이다.
 - Remote Action은 metadata 관측만 제공하며 Local Action 기능을 추가하지 않는다.
-- Tool v0.12는 main의 `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`, Framework v5.2는 dev의 위 커밋으로 공개됐다.
+- 현재 Tool 기준은 **kcf_tools main / v0.12**다. `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`는 최초 기능 반영 커밋이다. Framework 현재 기준은 위 d41fc2f다.
 - Git tag 및 GitHub Release 생성 여부는 이번 작업에서 확인하지 않았다. 이번 문서 정합화 작업에서는 commit/push를 수행하지 않는다.
 - Tool + Framework Virtual LAN 통합 및 실제 물리 LAN·데스크톱 Remote 수동 검증은 미수행이다.
 
