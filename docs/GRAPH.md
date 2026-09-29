@@ -46,9 +46,9 @@ endpoint는 All 보기에서 연결선 없이 표시하며 존재하지 않는 E
 
 ## 검증
 
-2026-09-26 검증:
+2026-09-26 Local Graph 당시 검증 (아래 SHA는 당시 기준으로 보존):
 
-- 실제 KCF + Qt GUI 구성: 전체 **16/16 PASS**. 현재 외부 Framework HEAD는
+- 실제 KCF + Qt GUI 구성: 전체 **16/16 PASS**. 당시 외부 Framework HEAD는
   `d672f23abdbace7a4fd41e1804eb69d2d48d95eb`; 외부 Framework 작업 파일을 수정하지 않았다.
   사용자 프로세스/SHM과 분리한 PID/SHM namespace에서 실행했다.
 - KCF 없는 Mock/stub GUI 구성: **5/5 PASS**.
@@ -94,3 +94,7 @@ identity가 다를 경우에도 identity만 따르며 임의의 추가 Element�
 위 2026-09-26 결과는 Local Graph의 기존 검증 기록으로 유지한다. 새 검증 결과와
 외부 Gateway route/statistics 조회 API의 한계는 해당 문서에서 별도로 기록한다.
 Remote 점선은 발견된 endpoint의 소유/등록 관계이며 실제 전송이나 호출의 증거가 아니다.
+
+현재 v0.12 Network 빌드 기준은 KCF v5.2 `0a3f2a630cec209793f9ac6e99107752e9e01283`이다.
+이는 위 Local Graph 당시 SHA의 교체가 아니다. Remote 최초 검증과 공개 커밋 후속 검증은
+[Network 관측](NETWORK_OBSERVATION.md)에서 구분한다.

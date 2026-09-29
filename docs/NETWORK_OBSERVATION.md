@@ -4,6 +4,43 @@
 Framework protocol 및 payload codec은 복제하지 않는다.
 기존 v0.11 Local Tool 기능 위에 read-only 관측을 추가한다.
 
+## 현재 공개 기준
+
+Tool v0.12는 `Nyamkani/kcf_tools` main의
+`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`로 반영됐다. 현재 Network 빌드 기준은
+`Nyamkani/kss_control_framework` dev의 **KCF v5.2**
+`0a3f2a630cec209793f9ac6e99107752e9e01283`이다. Git tag/GitHub Release 생성 여부는 확인하지 않았다.
+
+아래 미커밋 검토 및 최초 18/18·6/6은 공개 커밋 반영 전의 기록이다. 당시 Framework
+Network working tree는 이후 위 v5.2 커밋으로 반영됐으며, 더 이상 미커밋 소스가
+필수라는 의미가 아니다. 후속 공개 커밋 검증은 별도 절에 기록한다.
+
+## 공개 KCF v5.2 후속 검증 (2026-09-29)
+
+위 최초 working tree 검증과 별도로 공개 커밋
+`0a3f2a630cec209793f9ac6e99107752e9e01283`의 **수정 없는 Git archive 추출본**으로
+새 configure/build 및 회귀를 실행했다. 추출본 215개 파일은 Git tree의 blob hash와
+빌드 전후 일치함을 확인했다. 소스는 `/tmp/kcf-v52-published-0a3f2a6`이며
+기존 KCF_SOURCE_DIR 방식으로 참조했다.
+
+- KCF + Qt: **18/18 PASS**, 24.50초. `/tmp/kcf-tools-v52-published`.
+- Framework 없는 Mock/stub + Qt: **6/6 PASS**, 3.12초. `/tmp/kcf-tools-v52-review-no-kcf`.
+- 로그: 각 빌드의 `Testing/Temporary/LastTest.log`.
+- KCF 회귀는 기존과 같이 user/mount/PID namespace 및 별도 `/dev/shm`에서 실행했다.
+- 실제 Backend는 loopback, GUI는 offscreen이다. Tool + Framework Virtual LAN 통합,
+  물리 LAN 및 데스크톱 Remote 수동 검증은 수행하지 않았다.
+- 기능 코드·테스트 기대값·Framework 소스는 수정하지 않았다. CMake는 도움말만 변경했다.
+
+처음 참조한 Framework checkout은 시작 시 clean이었으나 작업 도중 외부 변경이
+나타났다. 변경된 `FrameworkVersion` 기본값(5.2.0)과 기존 테스트 기대값(5.1.0)의
+불일치로 해당 중간 실행은 17/18이었다. 이 결과를 공개 커밋 결과로 사용하지 않고,
+위 독립 추출본으로 새 빌드와 전체 회귀를 완료했다. 공개 `0a3f2a6`의 해당 기본값은
+5.1.0이며 문서의 배포 버전과 구분한다. 외부 변경은 되돌리거나 수정하지 않았다.
+따라서 원래 Framework working tree의 작업 전후 status가 동일하다고 주장하지 않는다.
+
+GitHub main/dev HEAD는 `git ls-remote`로 위 공개 SHA와 일치함을 확인했다.
+이번 문서 정합화에서는 commit/push를 수행하지 않았다.
+
 ## 실행 및 lifecycle
 
 ```sh
@@ -89,7 +126,7 @@ publisher 또는 Network proxy인지를 보장하지 않는다. Detail에 proxy 
 Host/session/Endpoint를 확인하고 ACTIVE이며 최신 ONLINE인 route만 그리는 adapter가
 필요하다. 이번 작업은 Framework 코드를 변경하지 않는다.
 
-## 검증
+## 최초 검증 기록 (공개 커밋 반영 전)
 
 이번 작업의 자동 검증 결과는 아래에 기록한다. Framework의 기존 Virtual 2-host LAN
 PASS는 Framework 기능 검증 이력이며 Tool 통합이나 실제 물리 LAN 검증으로 간주하지 않는다.
@@ -124,11 +161,14 @@ CTest 상세 로그는 각 `Testing/Temporary/LastTest.log`에 있다.
 
 ### 2026-09-29 미커밋 변경 재검토
 
+이 절은 commit 전 검토 당시 기록이다. 이후 Tool main 및 Framework dev 반영 상태는
+위 「현재 공개 기준」을 따른다. 당시 검증 수치와 파일 목록을 보존한다.
+
 검토에 사용한 Framework 경로는
 `/home/kssvm/workspace/kcf/kss_control_framework`이며 HEAD는
 `8360b6e053472ba20acdfc62b7489e33122997ec`이다. 해당 checkout에는 검토 시작 전부터
 Network/Action 및 기존 Core 파일의 미커밋 변경이 있었다. 따라서 Network 빌드 결과는
-이 SHA의 clean checkout 검증이 아니라 **현재 Network 확장이 포함된 working tree**
+이 SHA의 clean checkout 검증이 아니라 **당시 Network 확장이 포함된 working tree**
 검증이다. 이전 workspace의 Framework 변경 작성자를 현재 diff만으로 확정할 수 없다.
 이번 Tool 검토에서는 Framework 소스를 수정하지 않는다.
 
@@ -145,7 +185,7 @@ Remote 선택 해제 또는 Local 노드 선택 후 이전 Remote Detail이 남�
 - 실제 물리 LAN 및 데스크톱 수동 검증은 이번에도 수행하지 않았다.
 - commit/push는 수행하지 않았다.
 
-현재 Tool 미커밋 변경 파일 전체(기존 수정 10개, 신규 13개):
+당시 Tool 미커밋 변경 파일 전체(기존 수정 10개, 신규 13개):
 
 - `CMakeLists.txt`
 - `README.md`
@@ -185,7 +225,7 @@ Tool 종료 후에도 기존 장치 간 통신이 계속되는지 별도로 관�
 Remote Parameter Set, Service Call, Action Goal/Cancel, call history UI, payload
 forwarding은 미지원이며 Tool은 Gateway/Data Broker로 동작하지 않는다.
 
-## 이번 변경 파일
+## 최초 구현 당시 변경 파일
 
 신규:
 

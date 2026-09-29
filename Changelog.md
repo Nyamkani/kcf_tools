@@ -152,6 +152,15 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - [Graph 기록](docs/GRAPH.md), [Network 관측 및 검토 기록](docs/NETWORK_OBSERVATION.md), [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md)를 연결했습니다.
 - 이번 버전 정리는 문서만 변경했습니다. 재테스트·commit/push/tag 생성 및 GitHub Release 생성은 수행하지 않았습니다.
 
+## v0.12 — 공개 KCF v5.2 기준 정합화 (후속 작업)
+
+- Tool v0.12 main `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`와 Framework v5.2 dev `0a3f2a630cec209793f9ac6e99107752e9e01283`의 공개 상태를 확인했습니다.
+- README·v0.12 릴리스 노트·Network 문서의 현재 빌드 기준을 공개 KCF v5.2로 정리했습니다. 위 v0.12 최초 검증 및 commit/push 미수행 문구는 당시 작업 기록입니다.
+- Local v0.11의 14/14, Local Graph 당시 SHA, 미커밋 Network working tree의 18/18·6/6 및 Framework 215개 해시 기록을 보존했습니다. 후속 공개 커밋 검증은 별도로 기록합니다.
+- 후속 검증: 공개 `0a3f2a6`의 수정 없는 Git 추출본에서 새 configure/build 및 KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt **6/6 PASS**. 원래 checkout의 동시 외부 변경이 포함된 중간 실행은 제외했으며 [Network 기록](docs/NETWORK_OBSERVATION.md)에 구분했습니다.
+- CMake의 KCF_SOURCE_DIR 도움말만 변경했습니다. header 존재 기반 Network 감지, 기능 코드 및 Framework 소스는 수정하지 않습니다. Tool 버전은 v0.12를 유지합니다.
+- Git tag/GitHub Release 생성 여부는 확인하지 않았으며, 이번 작업에서는 commit/push를 수행하지 않습니다.
+
 ## 상세 기록
 
 - [KT-3 실제 backend](docs/KT3_REAL_KCF_BACKEND.md)

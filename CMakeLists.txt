@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(KCF_TOOL_BUILD_GUI "Build Qt Widgets application" ON)
 option(KCF_TOOL_BUILD_TESTS "Build backend and widget smoke checks" OFF)
-set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (validated with Framework v5.1; optional)")
+set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (optional; v0.12 Network observation requires KCF v5.2 Network API)")
 
 add_library(kcf_tool_backend src/backend/mock_backend.cpp)
 target_include_directories(kcf_tool_backend PUBLIC include)

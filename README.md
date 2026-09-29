@@ -10,14 +10,19 @@ v0.11의 Application/Element 탐색, Topic Echo, Parameter 편집, Service Call 
 identity·stale 처리를 유지합니다. Network 관측은 공개 Network API가 있는 Framework
 checkout으로 빌드할 때 제공하며, Remote 쓰기·호출이나 forwarding 기능은 포함하지 않습니다.
 
-2026-09-29 자동 회귀는 KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt
+2026-09-29 미커밋 Network working tree에서 수행한 과거 자동 회귀는 KCF + Qt **18/18 PASS**, Framework 없는 Mock/stub + Qt
 **6/6 PASS**입니다. Network 검증은 loopback 및 Qt offscreen 기준이며 실제 물리 LAN과
 데스크톱 수동 조작은 미검증입니다. v0.11의 사용자 Echo 수동 확인과 구분합니다.
 
 검증 결과와 호환성·제한은 [v0.12 릴리스 노트](docs/V0_12_RELEASE_NOTES.md),
 누적 작업 내역은 [Changelog](Changelog.md)를 참고하십시오.
 [v0.1](docs/V0_1_RELEASE_NOTES.md)과 [v0.11](docs/V0_11_RELEASE_NOTES.md)은 기존 개발 이력으로 보존합니다.
-이번 버전 정리는 문서 기준이며 Git tag나 GitHub Release를 생성하지 않았습니다.
+Tool v0.12는 main의 `f4fb4471fc0b03b24663eb20eede8d8491fd87f6`로 반영되었습니다.
+Git tag 및 GitHub Release 생성 여부는 이번 작업에서 확인하지 않았습니다.
+
+2026-09-29 후속 검증에서는 공개 KCF v5.2 `0a3f2a6…`의 수정 없는 Git 추출본으로
+새 configure/build 후 **KCF + Qt 18/18**, **Mock/stub + Qt 6/6 PASS**를 확인했습니다.
+과거 working tree 결과와 별도이며, 검증 환경과 로그는 [Network 검증 기록](docs/NETWORK_OBSERVATION.md)을 따릅니다.
 
 ## 빌드 및 실행
 
@@ -30,33 +35,37 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-기존 Local backend의 v0.11 검증 기준은 **Nyamkani/kss_control_framework dev의 Framework v5.1**,
-commit **`8360b6e053472ba20acdfc62b7489e33122997ec`**입니다.
-`KCF_SOURCE_DIR`에 임의 revision을 지정하면 호환성을 보장할 수 없습니다. 소스를 복사하지 않습니다.
-v0.12 Network 검증에 사용한 checkout의 HEAD도 위 SHA지만, Network/Action 및 Core의
-미커밋 확장을 포함합니다. **HEAD 일치만으로 Network 지원이나 동일한 검증 상태를
-보장하지 않습니다.** `git status`도 확인하고, 기존 빌드와 분리한 새 디렉터리에서
-Tool과 외부 Core를 함께 빌드합니다. Network API가 없는 Framework에서는 Local 기능만 제공합니다.
+현재 v0.12 Network 관측의 빌드 기준은 **KCF v5.2 Network API**,
+`Nyamkani/kss_control_framework` dev에 공개된
+**`d41fc2fc71d3b60b0475035ec56ac32b92ffb849`**입니다. Tool v0.12와 Framework v5.2는 독립적인 버전입니다.
+`KCF_SOURCE_DIR`로 외부 소스를 참조하며 복사하지 않습니다. 아래 HEAD가 지정 SHA인지,
+working tree가 clean인지 확인하고 새 빌드 디렉터리를 사용합니다.
+Network API가 없는 기존 Framework에서는 Local 기능만 제공합니다.
+
+Local v0.11의 과거 검증은 v5.1 `8360b6e053472ba20acdfc62b7489e33122997ec`의
+14/14 결과입니다. v0.12 최초 18/18 검증은 같은 HEAD에 Network 미커밋 확장을 포함한
+working tree에서 수행했습니다. 그 Network 구현은 이후 위 v5.2 커밋으로 dev에 반영됐습니다.
+과거 결과를 공개 v5.2 커밋의 재검증 결과로 바꾸지 않으며 후속 검증은 별도로 기록합니다.
 
 Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고 새 바이너리로
 다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
 이전 Core를 계속 사용하며, GUI Refresh로 실행 파일이 교체되지 않습니다.
 `readlink /proc/<GUI_PID>/exe`가 `(deleted)`로 끝나면 rebuild 전 프로세스인지
-확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v51/kcf_tool`로
+확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v52/kcf_tool`로
 비교할 수 있습니다. 구버전 Tool의 `Protocol error` 사례와 정확한 반환 경로는
 [수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 기록했습니다.
 
 ```sh
 git -C /home/kssvm/workspace/kcf/kss_control_framework rev-parse HEAD
 git -C /home/kssvm/workspace/kcf/kss_control_framework status --short
-cmake -S . -B build-v51 \
+cmake -S . -B build-v52 \
   -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
   -DKCF_TOOL_BUILD_TESTS=ON \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
-cmake --build build-v51 -j
-./build-v51/kcf_tool --backend kcf
-ctest --test-dir build-v51 --output-on-failure
+cmake --build build-v52 -j
+./build-v52/kcf_tool --backend kcf
+ctest --test-dir build-v52 --output-on-failure
 ```
 
 Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
@@ -119,7 +128,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 ### Application과 GUI 수동 실행
 
 위 빌드를 완료한 후 각 명령을 별도 터미널에서 실행합니다. 실제 Tool GUI는
-앞의 `build-v51` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
+앞의 `build-v52` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
 
 ```sh
 # 터미널 1: Alpha — sensor / processor
@@ -138,7 +147,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 
 ```sh
 # 터미널 4: Tool 저장소 디렉터리에서 실행
-./build-v51/kcf_tool --backend kcf
+./build-v52/kcf_tool --backend kcf
 ```
 
 Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
@@ -187,12 +196,12 @@ Remote metadata 관측은 아래 v0.12 Network 확장으로 제공합니다. [Gr
 
 ## v0.12 Network 관측
 
-Network API가 포함된 Framework checkout으로 빌드하면 `--backend kcf` 실행 시
+KCF v5.2 Network API가 포함된 Framework checkout으로 빌드하면 `--backend kcf` 실행 시
 공개 `PeerDiscovery` API를 이용해 LAN peer를 관측합니다. 위 v0.11 기준 SHA의
-Local-only 검증과 구분되는 v0.12 기능이며, Network 확장이 포함된 Framework가 필요합니다.
+Local-only 검증과 구분되는 v0.12 기능이며, 위 공개 v5.2 커밋을 빌드 기준으로 사용합니다.
 
 ```sh
-./build/kcf_tool --backend kcf --network-interface 192.168.1.10
+./build-v52/kcf_tool --backend kcf --network-interface 192.168.1.10
 # loopback 테스트: --network-interface 127.0.0.1 --network-port 37651
 # Local 전용: --backend kcf --no-network
 ```
