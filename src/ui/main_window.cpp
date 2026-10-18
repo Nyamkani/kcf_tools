@@ -172,6 +172,7 @@ MainWindow::MainWindow(std::unique_ptr<ToolBackend> backend,
     Fields<7>(topic_form, {"Name", "Type", "Payload Size", "Frequency", "Sequence",
                           "Publishers", "Subscribers"}, topic_fields_);
     topic_fields_[3]->setObjectName("topicFrequency");
+    topic_fields_[3]->setToolTip("During Echo: observed Local transport Publish rate from sequence / steady time; not the 100 ms GUI polling rate.");
     topic_fields_[4]->setObjectName("topicSequence");
     details->addWidget(topic_form);
     topic_identity_ = new QLabel;
@@ -516,11 +517,19 @@ void MainWindow::StartEcho() {
     }
     start_echo_->setEnabled(false);
     stop_echo_->setEnabled(true);
+    echo_rate_history_.clear();
+    topic_fields_[3]->setText("Measuring...");
     echo_timer_->start();
     PollEcho();
 }
 void MainWindow::StopEcho() {
     echo_timer_->stop();
+    echo_rate_history_.clear();
+    const int row = topic_list_->currentRow();
+    const bool available = row >= 0 && static_cast<std::size_t>(row) < topics_.size()
+        && topics_[row].frequency_available;
+    topic_fields_[3]->setText(available
+        ? QString::number(topics_[row].frequency_hz, 'f', 1) + " Hz" : QStringLiteral("N/A"));
     backend_->StopTopicEcho();
     if (stop_echo_->isEnabled()) {
         start_echo_->setEnabled(true);
@@ -546,6 +555,20 @@ void MainWindow::PollEcho() {
             : "Echo error: " + ErrorText(result));
         statusBar()->showMessage(echo_status_->text());
         return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (!echo_rate_history_.empty() && snapshot.sequence < echo_rate_history_.back().second)
+        echo_rate_history_.clear();
+    echo_rate_history_.emplace_back(now, snapshot.sequence);
+    while (echo_rate_history_.size() > 16 ||
+           now - echo_rate_history_.front().first > std::chrono::seconds(1))
+        echo_rate_history_.pop_front();
+    const double elapsed = std::chrono::duration<double>(now - echo_rate_history_.front().first).count();
+    if (echo_rate_history_.size() >= 2 && elapsed >= 0.5) {
+        const double hz = static_cast<double>(snapshot.sequence - echo_rate_history_.front().second) / elapsed;
+        topic_fields_[3]->setText(QString::number(hz, 'f', 1) + " Hz");
+    } else {
+        topic_fields_[3]->setText("Measuring...");
     }
     echo_table_->setRowCount(0);
     const auto append = [&](const QString& name, const FieldValue& field, const std::string& value) {

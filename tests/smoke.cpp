@@ -99,12 +99,14 @@ int main(int argc, char** argv) {
             while(elapsed.elapsed() < 250) { app.processEvents(); QThread::msleep(5); }
         };
         start->click();
+        Check(window.findChild<QLabel*>("topicFrequency")->text()=="Measuring...", "echo starts measuring");
         Check(timer->isActive() && timer->interval() == 100, "100 ms timer");
         Check(fields->rowCount() == 6 && fields->item(1,2)->text() == "2.25", "mock scalar");
         Check(fields->item(5,0)->text() == "values[3]" && fields->item(5,2)->text() == "8", "mock array");
         auto seq = fields->item(0,2)->text().toULongLong(); wait();
         Check(fields->item(0,2)->text().toULongLong() > seq, "poll updates");
         stop->click(); seq = mock->GetTopics()[1].sequence; wait();
+        Check(window.findChild<QLabel*>("topicFrequency")->text()=="66.7 Hz", "stop restores static frequency");
         Check(!timer->isActive() && mock->GetTopics()[1].sequence == seq, "stop prevents reads");
         start->click(); topics->setCurrentRow(0);
         Check(!timer->isActive() && fields->rowCount() == 0, "switch clears old target");

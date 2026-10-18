@@ -2,6 +2,8 @@
 #include "kcf_tool/backend/tool_backend.hpp"
 #include <QMainWindow>
 #include <array>
+#include <chrono>
+#include <deque>
 #include <memory>
 
 class QTreeWidget;
@@ -96,6 +98,7 @@ private:
     QLabel* topic_identity_;
     QTableWidget* echo_table_;
     QTimer* echo_timer_;
+    std::deque<std::pair<std::chrono::steady_clock::time_point, std::uint64_t>> echo_rate_history_;
     bool echo_requires_refresh_{false};
     bool discovery_refreshed_{false};
 

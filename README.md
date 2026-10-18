@@ -243,6 +243,9 @@ Local-only 검증과 구분되는 v0.12 기능이며, 위 공개 v5.2 커밋을 
 - Call 중에는 backend 조작을 잠시 비활성화하고 Echo를 중지합니다. GUI event loop는 계속 동작합니다.
 - Timeout은 callback 미실행을 보장하지 않으며 Tool은 자동 재호출하지 않습니다.
 - Topics에서 publisher를 선택하고 Start Echo를 누르면 100 ms마다 scalar/array 값을 표시합니다.
+- Echo의 Frequency는 Local Topic transport sequence 증가량을 `steady_clock` 경과 시간으로 나눈 관측 Publish Hz입니다. 최근 약 1초(최대 16개)를 보관하고 0.5초 이상 모이기 전에는 `Measuring...`를 표시합니다.
+- 100 ms UI polling과 Publish Hz는 별개입니다. payload timestamp 기반 source rate나 Remote route의 receive/transmit rate는 측정하지 않습니다.
+- Stop·오류·Topic 변경·Refresh에서는 측정 기록을 지우고 기존 정적 Frequency 또는 `N/A`를 복원합니다. sequence가 감소하면 측정을 다시 시작합니다.
 - Echo 동안 하나의 reader를 유지하며, R4.1의 SHM 재생성 감지를 사용합니다.
 - Stop Echo, Topic 변경, Refresh, 창 닫기 또는 치명적 읽기 오류 시 polling을 중지합니다.
 - 재생성 감지 후 Refresh와 Start Echo가 필요합니다. 첫 sample 대기는 자동 중지하지 않습니다.

@@ -15,6 +15,7 @@
 #include <QStatusBar>
 #include <csignal>
 #include <cassert>
+#include <iostream>
 
 int main(int argc,char** argv) {
     QApplication app(argc,argv); assert(argc==2||argc==3);
@@ -30,6 +31,7 @@ int main(int argc,char** argv) {
     auto* timer=window.findChild<QTimer*>("echoTimer");
     auto* fields=window.findChild<QTableWidget*>("echoFields");
     auto* status=window.findChild<QLabel*>("echoStatus");
+    auto* frequency=window.findChild<QLabel*>("topicFrequency");
     const auto wait = [&](auto condition) {
         QElapsedTimer elapsed; elapsed.start();
         while(!condition()) { assert(elapsed.elapsed()<10000); app.processEvents(); QThread::msleep(5); }
@@ -55,9 +57,18 @@ int main(int argc,char** argv) {
     assert(parameters->count()==2); parameters->setCurrentRow(0);
     assert(!window.findChild<QLineEdit*>("parameterEditor")->isEnabled());
     start->click(); assert(timer->isActive());
+    assert(frequency->text()=="Measuring...");
     wait([&]{return fields->rowCount()==7;});
     assert(window.findChild<QLabel*>("topicSequence")->text()!="N/A");
-    assert(window.findChild<QLabel*>("topicFrequency")->text()=="N/A");
+    const auto initial_sequence=window.findChild<QLabel*>("topicSequence")->text().toULongLong();
+    const auto measured = [&] {
+        wait([&]{return frequency->text().endsWith(" Hz");});
+        bool ok=false;const double hz=frequency->text().chopped(3).toDouble(&ok);
+        std::cout << "Observed Publish rate: " << hz << " Hz (expected 60..140)" << std::endl;
+        assert(ok && hz>=60 && hz<=140);
+    };
+    measured();
+    assert(window.findChild<QLabel*>("topicSequence")->text().toULongLong()>initial_sequence);
     assert(fields->item(0,2)->text()=="7" && fields->item(1,2)->text()=="1.25");
     assert(fields->item(6,0)->text()=="values[3]" && fields->item(6,2)->text()=="8");
     assert(::kill(static_cast<pid_t>(fixture.processId()),SIGUSR1)==0);
@@ -68,15 +79,22 @@ int main(int argc,char** argv) {
     const auto before_recreate=window.findChild<QLabel*>("topicIdentity")->text();
     assert(::kill(static_cast<pid_t>(fixture.processId()),SIGWINCH)==0);
     wait([&]{return !timer->isActive();});
+    assert(frequency->text()=="N/A");
     assert(status->text().contains("Refresh and start Echo again"));
     assert(!start->isEnabled());
     assert(fields->item(1,2)->text()=="9.5");
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});
     assert(window.findChild<QLabel*>("topicIdentity")->text()!=before_recreate);
     start->click(); assert(timer->isActive());
+    assert(frequency->text()=="Measuring...");
     wait([&]{return fields->rowCount()==7;});
     assert(fields->item(1,2)->text()=="9.5");
+    measured();
     stop->click(); assert(!timer->isActive());
+    assert(frequency->text()=="N/A");
+    start->click(); assert(frequency->text()=="Measuring...");
+    measured();
+    refresh->click(); assert(!timer->isActive() && frequency->text()=="N/A");
     // Duplicate name, different endpoint: selecting subscriber must not silently
     // resolve by name to the publisher. Refresh must preserve that exact choice.
     assert(select("/topic","SUBSCRIBER")); assert(!start->isEnabled());
@@ -86,9 +104,11 @@ int main(int argc,char** argv) {
     assert(select("/legacy","PUBLISHER"));
     assert(!start->isEnabled() && status->text()=="Type descriptor unavailable");
     assert(select("/topic","PUBLISHER")); start->click(); assert(timer->isActive());
+    measured();
     fixture.terminate(); assert(fixture.waitForFinished(10000)&&fixture.exitCode()==0);
     wait([&]{return !timer->isActive();});
     assert(status->text().startsWith("Echo error:"));
+    assert(frequency->text()=="N/A");
     assert(window.statusBar()->currentMessage().startsWith("Echo error:"));
     refresh->click(); assert(connection->text()=="Connection: Disconnected");
     assert(topics->count()==0 && fields->rowCount()==0 && !start->isEnabled());
@@ -98,11 +118,13 @@ int main(int argc,char** argv) {
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});
     start->click(); assert(timer->isActive());
     assert(fields->rowCount()==0 && status->text().contains("waiting"));
+    assert(frequency->text()=="Measuring...");
     assert(::kill(static_cast<pid_t>(fixture.processId()),SIGUSR1)==0);
     wait([&]{return fields->rowCount()==7;});
     assert(::kill(static_cast<pid_t>(fixture.processId()),SIGUSR2)==0);
     wait([&]{return !timer->isActive();});
     assert(status->text().startsWith("Echo error:"));
+    assert(frequency->text()=="N/A");
     assert(fixture.state()==QProcess::Running);
     fixture.terminate(); assert(fixture.waitForFinished(10000)&&fixture.exitCode()==0);
     window.close(); return 0;

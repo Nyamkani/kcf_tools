@@ -170,6 +170,14 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - Framework 원본의 기존 변경은 보존했으며 추출본은 지정 커밋과 동일합니다. `git diff --check`를 통과했습니다.
 - 기능 추가, Framework 수정 및 commit/push는 수행하지 않았습니다. 기존 지원 범위와 미검증 항목은 유지합니다.
 
+## Local Topic Echo — Observed Publish Hz (2026-10-18)
+
+- 기존 100 ms Echo polling에서 transport sequence 증가량 / `steady_clock` 경과 시간으로 Publish Hz를 표시합니다. 약 1초·최대 16개 관측점을 유지하고 최소 0.5초 전에는 `Measuring...`를 표시합니다.
+- Stop·오류·Topic 변경·Refresh는 기록을 초기화하고 정적 Frequency 또는 N/A를 복원합니다. sequence 감소 시에도 재측정합니다. Backend API, fixture 및 Remote 코드는 변경하지 않았습니다.
+- 새 configure/build(`/tmp/kcf-tools-local-hz`), Framework `3204b94c6d50bdee1afa13e7714db76cdc5c62a2` 기준 전체 **18/18 PASS**. 100 Hz real fixture의 Depth=1/4 관측값 **98.4~100.8 Hz**, 허용 범위 60~140 Hz. 로그: `Testing/Temporary/LastTest.log`.
+- 최초 샌드박스 실행은 fixture UDP socket 생성 거부로 중단했습니다. socket 사용이 가능한 환경에서 PID/SHM 격리를 유지하여 위 전체 회귀를 재실행했습니다. GUI 검증은 offscreen입니다.
+- UI polling 횟수, payload timestamp 기반 source rate, Remote network receive/transmit Hz와 구분합니다. Tool 버전은 유지하며 Framework 수정 및 commit/push는 수행하지 않았습니다.
+
 ## 상세 기록
 
 - [KT-3 실제 backend](docs/KT3_REAL_KCF_BACKEND.md)
