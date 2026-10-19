@@ -178,6 +178,59 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - 최초 샌드박스 실행은 fixture UDP socket 생성 거부로 중단했습니다. socket 사용이 가능한 환경에서 PID/SHM 격리를 유지하여 위 전체 회귀를 재실행했습니다. GUI 검증은 offscreen입니다.
 - UI polling 횟수, payload timestamp 기반 source rate, Remote network receive/transmit Hz와 구분합니다. Tool 버전은 유지하며 Framework 수정 및 commit/push는 수행하지 않았습니다.
 
+## v0.13 — Network Diagnostics / Verified Route Graph
+
+현재 Tool 버전은 v0.13, CMake project version은 0.13.0입니다. Framework 기준은
+v5.3.0 dev의 F-ND5B 완료 미커밋 working tree이며 공개 SHA/tag로 표현하지 않습니다.
+아래는 KT-ND1A부터 KT-ND3까지의 기존 실행 이력입니다. KT-ND4 문서 작업에서 테스트를 재실행한 결과가 아닙니다.
+
+### KT-ND1A — Remote Network Diagnostics Backend
+
+- 기존 PeerDiscovery와 worker에서 공개 NetworkDiagnosticsClient를 재사용합니다.
+- Gateway별 Route 전체 identity/session과 9개 Counter, 관측 시각, total_routes/truncated를 보존합니다.
+- Query timeout 80 ms, 자동 retry 없음, Gateway별 약 1초 목표의 공정한 순환 조회를 적용합니다.
+- LOST·세대 변경·실패 시 오래된 통계를 무효화하며 구형 Discovery-only와 Mock/stub를 유지합니다.
+
+### KT-ND1B — Network Topic Rate Calculation
+
+- 성공 Counter Delta / 실제 steady_clock 경과 시간으로 Send/Receive/Proxy Publish Hz와 Skipped/s를 계산합니다.
+- 최소 0.5초와 Measuring/Unavailable/정상 0 Hz를 구분합니다. 전체 identity·session·route_id·sending 역할이 일치해야 합니다.
+- 오류·Counter 감소·Route 종료 또는 truncated 누락 구간에서 연속성을 끊으며 9개 원본 Counter를 보존합니다.
+
+### KT-ND1C — Remote Topic Diagnostics Detail UI
+
+- 기존 읽기 전용 Remote Detail에 Route별 상태, identity/session, error/reason, Counter와 Rate를 표시합니다.
+- 여러 Route를 합산하지 않고, Proxy Publish를 Application 처리율로 표현하지 않습니다.
+
+### KT-ND1D — Verified Network Route Graph
+
+- 양쪽 정상 Gateway가 확인한 동일 ACTIVE Route와 실제 Publisher/Subscriber registration만 연결합니다.
+- 10초 freshness, 전체 identity/session/route_id 및 역할을 검사합니다. Network는 청록색 방향 실선,
+  metadata ownership은 점선이며 tooltip에 Route ID와 Send/Receive Hz를 표시합니다.
+- 기존 필터/레이아웃/Zoom/Pan/Fit을 유지하고 수동 Refresh 이후 자동 만료는 추가하지 않았습니다.
+
+### KT-ND2 — End-to-End Integration Validation
+
+- 두 실제 Gateway와 독립 Tool Observer, 기존 Virtual LAN fixture, Qt offscreen Graph까지 검증했습니다.
+- Publisher 200.22 Hz, Send 46.67 Hz, Receive/Proxy Publish 47.07 Hz, Skipped 152.58/s를 관측했습니다.
+- 양쪽 ACTIVE 기록이 동일 Route로 일치하고 Graph Edge 1개를 확인했습니다. Timeout/LOST/새 session/
+  Diagnostics 비활성화 및 11초 대기 후 Refresh의 freshness 처리는 PASS입니다.
+- 구형 Framework 최초 17/18에서 Explorer 초기 대기 실패, 단독 재실행 PASS 이력을 보존합니다.
+
+### KT-ND3 — Pre-release Stability Review
+
+- 구형 Explorer 격리 반복 10/10 PASS(1.086~1.343초), 현재 Framework Tool 19/19,
+  구형 Framework 18/18, Mock/stub 6/6 및 Virtual LAN 후속 회귀 PASS입니다.
+- Framework Network 최초 7/8, Topic Integration 대기 실패 후 단독 재실행 PASS이며 원인은 미확정입니다.
+  과거 Conflict/Action의 간헐적 실패·후속 PASS도 최초 성공으로 바꾸지 않습니다.
+- 변경 범위를 확인하고 외부 Framework에 생성된 Python 캐시를 제거했습니다.
+  테스트 스크립트의 캐시 생성 방지만 추가했으며 제품 기능/Timeout은 변경하지 않았습니다.
+- 물리 LAN·실제 데스크톱 GUI 수동 검증은 미실행입니다.
+
+검증 출처·미확정 실패·호환성은 [v0.13 릴리스 노트](docs/V0_13_RELEASE_NOTES.md)를 따릅니다.
+기존 v0.1/v0.11/v0.12 릴리스 노트, 과거 날짜·SHA·수치는 보존합니다.
+이번 버전·문서 정리에서 commit/push/tag/GitHub Release는 생성하지 않습니다.
+
 ## 상세 기록
 
 - [KT-3 실제 backend](docs/KT3_REAL_KCF_BACKEND.md)
@@ -194,4 +247,4 @@ KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 - [Framework v5.1 수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)
 
 KT-7의 기존 보고서는 당시 기록이며, KT-7의 최종 PASS는 R2B.1 검증 결과를 따릅니다.
-현재 Tool 버전과 Framework 연동 상태는 위 v0.12 기록을 따릅니다.
+현재 Tool 버전과 Framework 연동 상태는 위 v0.13 기록을 따르며, v0.12 기록은 Historical로 보존합니다.

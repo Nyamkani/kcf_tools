@@ -2,6 +2,10 @@
 #include <cerrno>
 #ifdef KCF_TOOL_HAS_NETWORK
 #include "kcf/network/peer_discovery.hpp"
+#ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
+#include "kcf/network/network_diagnostics_client.hpp"
+#include "network_rates.hpp"
+#endif
 #include <sys/random.h>
 #include <algorithm>
 #include <chrono>
@@ -32,9 +36,9 @@ std::string Type(const net::TypeIdentity& t) {
 }
 std::string Capabilities(net::CapabilitySet bits) {
     const char* names[]={"DISCOVERY","REMOTE_PARAMETER","REMOTE_SERVICE","REMOTE_ACTION","REMOTE_TOPIC",
-        "TARGET_ENDPOINT","TARGET_HOST","TARGET_APPLICATION","TARGET_GROUP","TARGET_ALL"};
+        "TARGET_ENDPOINT","TARGET_HOST","TARGET_APPLICATION","TARGET_GROUP","TARGET_ALL","NETWORK_DIAGNOSTICS"};
     std::string out;
-    for(unsigned i=0;i<10;++i)if(bits & (1ull<<i)){if(!out.empty())out+=", ";out+=names[i];}
+    for(unsigned i=0;i<11;++i)if(bits & (1ull<<i)){if(!out.empty())out+=", ";out+=names[i];}
     return out+" (raw="+std::to_string(bits)+")";
 }
 NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
@@ -85,6 +89,51 @@ NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
     std::sort(out.hosts.begin(),out.hosts.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     return out;
 }
+#ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
+using Clock=std::chrono::steady_clock;
+struct CachedDiagnostics {
+    RemoteNetworkDiagnostics value;
+    Clock::time_point next{};
+    detail::NetworkRateTracker rates;
+};
+RouteEndpointIdentity ConvertIdentity(const net::RemoteEndpointIdentity& e) {
+    return {Key(e.runtime.host),Key(e.runtime.boot_id),e.runtime.pid,e.runtime.process_start_ticks,e.registration_id};
+}
+RemoteNetworkDiagnostics ConvertDiagnostics(const net::NetworkDiagnosticsSnapshot& snapshot) {
+    RemoteNetworkDiagnostics out;out.status=snapshot.truncated?DiagnosticsState::TRUNCATED:DiagnosticsState::VALID;
+    out.gateway_host=Key(snapshot.gateway_host);out.gateway_boot=Key(snapshot.gateway_boot_id);out.gateway_session=snapshot.gateway_session;
+    out.observed_at_unix_ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    out.total_routes=snapshot.total_routes;out.truncated=snapshot.truncated;
+    for(const auto& r:snapshot.routes){
+        RemoteRoute v;v.source=ConvertIdentity(r.source);v.destination=ConvertIdentity(r.destination);
+        v.source_session=r.source_session;v.destination_session=r.destination_session;v.route_id=r.route_id;
+        v.name=r.name;v.state=static_cast<std::uint8_t>(r.state);v.reason=static_cast<std::uint8_t>(r.reason);
+        v.proxy_recovery=static_cast<std::uint8_t>(r.proxy_recovery);v.sending=r.sending;v.error=r.error;
+        v.packets_sent=r.packets_sent;v.packets_received=r.packets_received;v.samples_published=r.samples_published;
+        v.dropped=r.dropped;v.duplicate=r.duplicate;v.out_of_order=r.out_of_order;v.missed_sequence=r.missed_sequence;
+        v.malformed=r.malformed;v.local_samples_skipped=r.local_samples_skipped;out.routes.push_back(std::move(v));
+    }
+    return out;
+}
+DiagnosticsState Eligibility(const net::PeerInfo& peer,const net::DiscoveryConfig& config) {
+    if(peer.state!=net::PeerState::ONLINE)return DiagnosticsState::LOST;
+    if(!net::CheckPeerCompatibility(config.profile,peer.profile,config.compatibility_policy).Compatible())return DiagnosticsState::INCOMPATIBLE;
+    if(!(peer.profile.capabilities&net::CapabilityBit(net::Capability::NETWORK_DIAGNOSTICS)))return DiagnosticsState::UNSUPPORTED;
+    return DiagnosticsState::PENDING;
+}
+void Reconcile(std::map<std::string,CachedDiagnostics>& cache,const std::vector<net::PeerInfo>& peers,const net::DiscoveryConfig& config) {
+    for(auto it=cache.begin();it!=cache.end();) {
+        if(std::none_of(peers.begin(),peers.end(),[&](const auto& p){return Key(p.host)==it->first;}))it=cache.erase(it);else ++it;
+    }
+    for(const auto& peer:peers){auto& entry=cache[Key(peer.host)];auto& value=entry.value;const auto state=Eligibility(peer,config);
+        if(value.gateway_boot!=Key(peer.boot_id)||value.gateway_session!=peer.session_id||state!=DiagnosticsState::PENDING||
+           value.status==DiagnosticsState::LOST||value.status==DiagnosticsState::INCOMPATIBLE||value.status==DiagnosticsState::UNSUPPORTED){
+            entry={};value.gateway_host=Key(peer.host);value.gateway_boot=Key(peer.boot_id);value.gateway_session=peer.session_id;value.status=state;
+        }
+    }
+}
+#endif
+
 }
 class NetworkObserver {
 public:
@@ -103,10 +152,47 @@ private:
             config.interface_address=options.interface_address;config.port=options.port;
             const int result=discovery.Start(config);
             if(result){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Discovery start failed: "+std::to_string(result);return;}
+#ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
+            net::NetworkDiagnosticsClient client(discovery,config);
+            std::map<std::string,CachedDiagnostics> cache;std::string cursor;
+#endif
             for(;;){
-                auto next=Convert(discovery.GetPeers(),discovery.GetLastError());
+                const auto tick=std::chrono::steady_clock::now()+std::chrono::milliseconds(100);
+                {std::lock_guard<std::mutex> lock(mutex_);if(stop_)break;}
+                auto peers=discovery.GetPeers();
+#ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
+                Reconcile(cache,peers,config);
+                // One bounded query per 100 ms tick. A rotating Host cursor
+                // prevents starvation; ~1 s per Host where capacity permits.
+                std::sort(peers.begin(),peers.end(),[](const auto& a,const auto& b){return Key(a.host)<Key(b.host);});
+                auto selected=peers.end();
+                for(auto it=peers.begin();it!=peers.end();++it)if(Eligibility(*it,config)==DiagnosticsState::PENDING && cache[Key(it->host)].next<=Clock::now()){
+                    if(selected==peers.end())selected=it;
+                    if(Key(it->host)>cursor){selected=it;break;}
+                }
+                if(selected!=peers.end() && !discovery.GetLastError()){
+                    const auto target=*selected;cursor=Key(target.host);
+                    net::NetworkDiagnosticsSnapshot raw;
+                    const int code=client.Query(target.host,raw,std::chrono::milliseconds(80));
+                    const auto observed=Clock::now();
+                    peers=discovery.GetPeers();Reconcile(cache,peers,config);
+                    const auto current=std::find_if(peers.begin(),peers.end(),[&](const auto& p){return p.host==target.host;});
+                    if(current!=peers.end() && current->boot_id==target.boot_id && current->session_id==target.session_id && Eligibility(*current,config)==DiagnosticsState::PENDING){
+                        auto& entry=cache[cursor];entry.next=Clock::now()+std::chrono::seconds(1);
+                        entry.value={};entry.value.gateway_host=cursor;entry.value.gateway_boot=Key(target.boot_id);entry.value.gateway_session=target.session_id;
+                        if(code){entry.value.status=code==-ETIMEDOUT?DiagnosticsState::TIMEOUT:DiagnosticsState::ERROR;entry.value.error=code;}
+                        else entry.value=ConvertDiagnostics(raw);
+                        entry.rates.Observe(entry.value,observed);
+                    }
+                }
+#endif
+                auto next=Convert(peers,discovery.GetLastError());
+#ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
+                next.route_status="Gateway diagnostics available in backend snapshot; no inferred network edges";
+                for(auto& host:next.hosts)host.diagnostics=cache.at(host.id).value;
+#endif
                 std::unique_lock<std::mutex> lock(mutex_);snapshot_=std::move(next);
-                if(wake_.wait_for(lock,std::chrono::milliseconds(100),[this]{return stop_;}))break;
+                if(wake_.wait_until(lock,tick,[this]{return stop_;}))break;
             }
             discovery.Stop();
         } catch(...) {std::lock_guard<std::mutex> lock(mutex_);snapshot_.hosts.clear();snapshot_.status="Discovery worker failed";}

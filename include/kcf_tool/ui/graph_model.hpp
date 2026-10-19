@@ -19,7 +19,7 @@ struct GraphNode {
     std::string host, detail; // Nonempty host means REMOTE; never activate Local APIs.
     bool lost{false};
 };
-struct GraphEdge { std::string from, to, role; EndpointIdentity endpoint; };
+struct GraphEdge { std::string from, to, role; EndpointIdentity endpoint; bool network_route{false}; std::string detail; };
 struct GraphOptions { bool topics{true}, parameters{false}, services{false}; std::string group; bool actions{false}, local{true}, remote{true}; std::string host; };
 struct GraphModel { std::vector<GraphGroup> groups; std::vector<GraphNode> nodes; std::vector<GraphEdge> edges; };
 GraphModel BuildGraph(const std::vector<ApplicationInfo>& applications,

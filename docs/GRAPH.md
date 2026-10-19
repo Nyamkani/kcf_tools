@@ -3,7 +3,7 @@
 기존 ToolBackend discovery 계약을 사용하는 Local 구조 시각화다. Local Graph 자체는
 Framework 및 기존 Local Backend 동작을 변경하지 않는다. 별도의 Network Backend 확장은
 아래 Remote metadata 절에서 설명한다. 기존 여섯 탭 뒤에 Graph 탭을 추가하여 탭 순서와 기존
-Elements/Topics/Parameters/Services 동작을 유지한다. 이 기능은 [v0.12](V0_12_RELEASE_NOTES.md)에 포함한다.
+Elements/Topics/Parameters/Services 동작을 유지한다. 기본 기능은 [v0.12](V0_12_RELEASE_NOTES.md)에 포함됐으며, 현재 [v0.13](V0_13_RELEASE_NOTES.md)은 아래 Verified Route Graph를 추가한다.
 
 ## 모델과 표현
 
@@ -78,7 +78,7 @@ ctest --test-dir /tmp/kcf-tools-graph --output-on-failure
 중단할 수 없으면 별도의 PID/SHM namespace에서 실행한다. Graph 자체의 smoke/model
 테스트는 실제 IPC를 만들지 않는다. 로그는 각 build의 `Testing/Temporary/LastTest.log`에 있다.
 
-## 현재 표현할 수 없는 관계
+## Local metadata만으로 표현할 수 없는 관계
 
 Service client 및 미발견 Parameter client, 실제 packet/호출 흐름,
 전송 성공 여부·주기·throughput은 추정하지 않는다. 같은 이름의 endpoint가 연결되어
@@ -95,6 +95,41 @@ identity가 다를 경우에도 identity만 따르며 임의의 추가 Element�
 외부 Gateway route/statistics 조회 API의 한계는 해당 문서에서 별도로 기록한다.
 Remote 점선은 발견된 endpoint의 소유/등록 관계이며 실제 전송이나 호출의 증거가 아니다.
 
-현재 v0.12 Network 빌드 기준은 KCF v5.2 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다.
+Historical: v0.12 Network 빌드 기준은 KCF v5.2 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다.
 이는 위 Local Graph 당시 SHA의 교체가 아니다. Remote 최초 검증과 공개 커밋 후속 검증은
 [Network 관측](NETWORK_OBSERVATION.md)에서 구분한다.
+
+## v0.13 Verified Network Route Graph
+
+Framework v5.3.0 dev working tree의 공개 Diagnostics API로 얻은 `NetworkSnapshot`을
+기존 Remote Graph에 결합한다. 현재 기준은 미커밋 working tree이며 공개 SHA/tag를 지정하지 않는다.
+metadata 점선은 소유/등록 관계이고, 아래 Network 실선만 실제 Diagnostics 증거를 뜻한다.
+
+- 양쪽 Gateway가 ONLINE·호환 가능하고 metadata가 준비됐으며 Diagnostics가 VALID 또는
+  TRUNCATED인 경우만 검토한다. Snapshot Gateway Host/boot/session은 현재 Peer와 일치해야 한다.
+- 양쪽에서 **ACTIVE**인 동일 Route의 source/destination 전체 Endpoint identity
+  (Host/boot/PID/start_ticks/registration), 양쪽 discovery session, route_id를 대조한다.
+  송신은 `sending=true`, 수신은 `sending=false`여야 한다. 이름/type만으로 연결하지 않는다.
+- 양쪽 성공 관측 시각이 Graph 생성/재그리기 시점에서 **10초 이내**여야 한다.
+  0 또는 미래 timestamp는 거부한다. 순환 조회 지연을 고려한 Tool freshness 정책이며
+  Framework route TTL이나 Query timeout이 아니다. 공개 DTO의 Unix ms 시각을 비교한다.
+- 실제 metadata에 해당 PUBLISHER/SUBSCRIBER registration과 역할이 모두 있어야 한다.
+  Host/Application 필터, Topics 및 Local/Remote toggle 적용 후 양쪽 노드가 표시될 때만 연결한다.
+- Route당 Publisher endpoint → Subscriber endpoint Edge 하나를 만든다. 중복 기록은 제거하고
+  다중 Route는 개별 Edge로 유지한다. 기존 deterministic 노드 layout은 변경하지 않는다.
+- **Network Route는 청록색 방향 실선**, **metadata ownership은 점선**이다.
+  Tooltip은 Route ID, Network Send/Receive Hz를 표시한다. 미측정은 Measuring/Unavailable,
+  정상 무전송은 0 Hz로 구분한다. UI는 Backend Rate를 그대로 사용하며 재계산하지 않는다.
+- Query 오류, LOST, session 변경, WAITING/REJECTED/CLOSED 또는 과거 notice/history는
+  ACTIVE Edge의 증거가 아니다. truncated에서도 양쪽에 실제 포함된 Route는 허용하지만
+  누락을 Route 부재나 삭제의 증거로 해석하지 않는다.
+
+Graph는 **수동 Refresh**다. 표시된 선은 이후 시간이 지나도 자동 만료되지 않는다.
+Refresh 또는 필터 재그리기에서 조건을 다시 검사하며, 저장된 Snapshot이 오래되면 선을 제거한다.
+선은 관측 시점의 증거이며 현재 순간의 전송 보장이나 Application 처리율이 아니다.
+Remote Detail, Local Graph, Zoom/Pan/Fit 및 기존 탐색 동작은 유지한다.
+
+KT-ND2의 실제 Virtual LAN Backend Snapshot → Qt offscreen Scene 검증에서 양쪽 ACTIVE
+기록이 동일 Route로 일치하고 Network Edge **1개**의 양 끝·방향·종류·tooltip을 확인했다.
+11초 대기 중 선 유지 및 Refresh 후 오래된 증거 거부, Timeout/LOST/재시작/Diagnostics 비활성화도 PASS했다.
+물리 LAN·실제 데스크톱 GUI 수동 검증은 미실행이다. [출처별 검증 기록](V0_13_RELEASE_NOTES.md#검증-기록)을 따른다.

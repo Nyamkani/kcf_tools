@@ -1,13 +1,83 @@
 # Network Remote Discovery / Graph 관측
 
+현재 Tool은 **v0.13**, Framework 기준은 **v5.3.0 dev 미커밋 working tree (F-ND5B 완료)**다.
+공개 SHA/tag가 이 working tree를 대표한다고 쓰지 않는다. 기존 v0.12 Discovery 기능은 유지한다.
+검증 출처와 실패 이력은 [v0.13 릴리스 노트](V0_13_RELEASE_NOTES.md)에 기록한다.
+
+## v0.13 Network Diagnostics 계약
+
+- 기존 Observer worker와 실행 중인 `PeerDiscovery`를 재사용한다. 별도 Discovery,
+  Gateway, TopicDataPlane, listener를 만들지 않는다. Framework 공개 API만 사용하며
+  protocol/codec을 복제하지 않고 Topic payload 수신·forwarding을 하지 않는다.
+- ONLINE, 호환 가능, NETWORK_DIAGNOSTICS capability가 있는 Gateway만
+  `NetworkDiagnosticsClient::Query()`로 조회한다. Gateway는 `diagnostics_enabled`를
+  활성화해야 하며 Framework 기본값은 OFF다.
+- 동기식 bounded Query는 GUI가 아닌 worker에서 직렬 실행한다. Tool timeout은 **80 ms**,
+  자동 retry는 없다. 이후 정기 관측은 새 Query다. Stop/소멸은 진행 중 Query의 유한 timeout 후 join한다.
+- 기존 100 ms Discovery snapshot 갱신을 유지하며 tick당 최대 한 Gateway를 조회한다.
+  Gateway별 약 1초를 목표로 순환하고 다수 Host에서는 조회량 제한과 공정성을 우선한다.
+  Query 종료 뒤 다음 조회를 예약하므로 고정 1초 주기나 모든 Host의 동시 관측을 보장하지 않는다.
+- 성공 후에도 Peer의 ONLINE·Host/boot/session을 다시 확인한다. 이전 통계를 새 세대의
+  유효한 값으로 제공하지 않는다. GUI Refresh는 저장된 Backend Snapshot을 복사한다.
+
+### Route 및 Counter
+
+Gateway Host/boot/session과 source/destination 전체 Endpoint identity
+(Host/boot/PID/start_ticks/registration), 양쪽 session, route_id, sending 역할을 보존한다.
+Topic 이름으로 합치지 않으며 송신/수신 Gateway 통계는 독립적이다. name, state,
+error/reason, total_routes, truncated, 성공 관측 시각도 제공한다.
+
+원본 Counter 9개는 `packets_sent`, `packets_received`, `samples_published`,
+`local_samples_skipped`, `dropped`, `duplicate`, `out_of_order`, `missed_sequence`, `malformed`다.
+정상 빈 Route, capability 미지원, Query 오류, Timeout, LOST 및 truncated를 구분한다.
+
+### Rate와 유효성
+
+동일 Gateway/Route 전체 identity와 양쪽 session·route_id·sending 역할이 일치하는
+성공 Snapshot의 Counter Delta를 실제 `steady_clock` 경과 시간으로 나눈 평균이다.
+최초는 **Measuring**, 최소 관측 구간은 **0.5초**이며 짧은 성공 관측은 구간을 누적한다.
+고정 1초로 나누거나 100 ms Discovery 복사를 새 Diagnostics 관측으로 계산하지 않는다.
+
+| 표시 | Counter |
+| --- | --- |
+| Network Send Hz | packets_sent |
+| Network Receive Hz | packets_received |
+| Proxy Publish Hz | samples_published |
+| Local Skipped/s | local_samples_skipped |
+
+Proxy Publish는 Gateway의 Local SHM 발행률이며 Application Subscriber 처리율이 아니다.
+Skipped는 Network sampling에서 생략된 Local sample이며 packet loss와 같지 않다.
+나머지 5개 Counter의 Delta도 모델에 보존한다. 양쪽 Gateway 관측 구간은 독립적이다.
+
+identity/session 변경, LOST, Query 오류/Timeout, Route 종료 또는 어느 Counter든 감소하면
+기존 Rate를 무효화하고 새 관측을 시작한다. **Unavailable**과 정상적인 **0 Hz**는 다르다.
+truncated에서도 양쪽 연속 관측에 실제 포함된 동일 Route의 Rate는 계산할 수 있다.
+누락 Route를 삭제로 단정하지 않지만 연속성은 끊으며, 오래된 Counter와 건너뛰어 연결하지 않는다.
+
+### Detail, Graph 및 호환성
+
+Remote Topic Detail은 Route별 상태·identity·error/reason·Counter·Rate를 표시한다.
+Publisher에는 Send/Skipped, Subscriber에는 Receive/Proxy Publish를 표시하고 합산하지 않는다.
+[Verified Route Graph](GRAPH.md#v013-verified-network-route-graph)는 양쪽 증거와 10초 최신성을
+추가 검사한다. 새로운 자동 GUI polling은 없으며 수동 Refresh 계약을 유지한다.
+
+`network_diagnostics_client.hpp`가 없는 구형 Network Framework는 기존 Discovery-only
+관측을 제공한다. Network API도 없는 Framework는 기존 Local-only, Framework 미지정은
+Mock/stub이며, 지원하지 않는 통계를 가짜 0으로 만들지 않는다. Remote Set/Call/Goal/Cancel은 미지원이다.
+
+## Historical — v0.12 기록
+
+이하 공개 기준·검증 절의 “현재/이번/미지원”은 당시 v0.12 범위를 뜻한다.
+날짜·SHA·측정값을 소급 변경하지 않는다. 현재 실행/lifecycle 및 모델 설명에는 위 v0.13 계약이 추가 적용된다.
+
 2026-09-29 [v0.12](V0_12_RELEASE_NOTES.md)에 포함한 변경이다.
 Framework protocol 및 payload codec은 복제하지 않는다.
 기존 v0.11 Local Tool 기능 위에 read-only 관측을 추가한다.
 
-## 현재 공개 기준
+## Historical — v0.12 공개 기준
 
-현재 Tool 기준은 **kcf_tools main / v0.12**다.
-`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`는 최초 기능 반영 커밋이다. 현재 Network 빌드 기준은
+당시 Tool 기준은 **kcf_tools main / v0.12**다.
+`f4fb4471fc0b03b24663eb20eede8d8491fd87f6`는 최초 기능 반영 커밋이다. 당시 Network 빌드 기준은
 `Nyamkani/kss_control_framework` dev의 **KCF v5.2**
 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`이다. Git tag/GitHub Release 생성 여부는 확인하지 않았다.
 
@@ -17,7 +87,7 @@ Network working tree는 이후 `0a3f2a6`으로 반영됐으며, 더 이상 미�
 
 ## KCF v5.2 d41fc2f 최종 정합성 검증 (2026-09-29)
 
-현재 기준 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`의 수정 없는 독립 Git archive
+당시 기준 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`의 수정 없는 독립 Git archive
 추출본(`/tmp/kcf-published-d41fc2f`)으로 새 configure/build 및 전체 회귀를 실행했다.
 CMake project version과 실제 Network FrameworkVersion은 **5.2.0**,
 NetworkProtocolVersion은 **1.0**이다.
@@ -123,7 +193,7 @@ Local registry 연결 상태이며 Remote 관측 상태는 Graph 하단에 별�
 - Host/Application 필터와 Local/Remote, T/P/S/A toggle은 저장된 snapshot에만 적용한다.
   Zoom/Pan과 명시적 Fit을 유지하고 Refresh나 필터 변경으로 강제 축소하지 않는다.
 
-## route diagnostics의 공개 API 한계
+## Historical — v0.12 route diagnostics의 공개 API 한계
 
 **외부 Gateway route visualization/statistics는 이번 구현에서 미지원이다.**
 
@@ -184,7 +254,7 @@ CTest 상세 로그는 각 `Testing/Temporary/LastTest.log`에 있다.
 ### 2026-09-29 미커밋 변경 재검토
 
 이 절은 commit 전 검토 당시 기록이다. 이후 Tool main 및 Framework dev 반영 상태는
-위 「현재 공개 기준」을 따른다. 당시 검증 수치와 파일 목록을 보존한다.
+위 「Historical — v0.12 공개 기준」을 따른다. 당시 검증 수치와 파일 목록을 보존한다.
 
 검토에 사용한 Framework 경로는
 `/home/kssvm/workspace/kcf/kss_control_framework`이며 HEAD는

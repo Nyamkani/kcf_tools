@@ -178,21 +178,28 @@ void GraphWidget::Draw() {
         auto* frame=scene_->addRect(-10,host_start-10,890,y-host_start+10,QPen(QColor("#617386"),2,host.lost?Qt::DashLine:Qt::SolidLine));
         frame->setZValue(-3);y+=40;
     }
+    std::map<std::pair<std::string,std::string>,unsigned> route_lanes;
     for(const auto& edge:model_.edges) {
-        const auto from=boxes.at(edge.from),to=boxes.at(edge.to);const bool forward=from.left()<to.left();
-        // Separate outgoing and incoming ports to keep bidirectional relations visible.
-        const QPointF a(forward?from.right():from.left(),from.center().y()+(forward?-7:7));
-        const QPointF b(forward?to.left():to.right(),to.center().y()+(forward?-7:7));
-        const qreal direction=forward?1:-1;
-        QPainterPath path(a);path.cubicTo(a+QPointF(110*direction,0),b-QPointF(110*direction,0),b);
+        const auto source=boxes.find(edge.from),destination=boxes.find(edge.to);
+        if(source==boxes.end() || destination==boxes.end())continue;
+        const auto from=source->second,to=destination->second;const bool forward=from.left()<to.left();
+        // Verified routes use outer right ports, leaving the deterministic node layout intact.
+        const QPointF a(edge.network_route?from.right():(forward?from.right():from.left()),from.center().y()+(forward?-7:7));
+        const QPointF b(edge.network_route?to.right():(forward?to.left():to.right()),to.center().y()+(forward?-7:7));
+        const qreal direction=edge.network_route?-1:(forward?1:-1);
+        const qreal lane=edge.network_route?24*route_lanes[{edge.from,edge.to}]++:0;
+        QPainterPath path(a);path.cubicTo(a+QPointF(edge.network_route?140+lane:110*direction,0),b-QPointF(edge.network_route?-110-lane:110*direction,0),b);
         const bool ownership=edge.role.find("metadata ownership")!=std::string::npos;
-        auto* line=scene_->addPath(path,QPen(QColor("#617386"),1.6,ownership?Qt::DashLine:Qt::SolidLine));line->setZValue(-1);
-        line->setToolTip(Text(edge.role)+QString(" / registration %1").arg(edge.endpoint.registration_id));
+        const QColor color(edge.network_route?"#007f9e":"#617386");
+        auto* line=scene_->addPath(path,QPen(color,edge.network_route?2.4:1.6,ownership?Qt::DashLine:Qt::SolidLine));line->setZValue(-1);
+        const auto tooltip=edge.network_route?Text(edge.detail):Text(edge.role)+QString(" / registration %1").arg(edge.endpoint.registration_id);
+        line->setToolTip(tooltip);
         QPolygonF arrow;arrow<<b<<b+QPointF(-9*direction,-4)<<b+QPointF(-9*direction,4);
-        auto* head=scene_->addPolygon(arrow,QPen(Qt::NoPen),QBrush(QColor("#617386")));head->setZValue(-1);
+        auto* head=scene_->addPolygon(arrow,QPen(Qt::NoPen),QBrush(color));head->setZValue(-1);head->setToolTip(tooltip);
     }
     scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-24,-24,24,24));
-    status_->setText(QString("%1 nodes • %2 metadata relations • ").arg(model_.nodes.size()).arg(model_.edges.size())+Text(network_.status));
+    std::size_t routes=0;for(const auto& e:model_.edges)if(e.network_route)++routes;
+    status_->setText(QString("%1 nodes • %2 metadata relations • %3 verified network routes • ").arg(model_.nodes.size()).arg(model_.edges.size()-routes).arg(routes)+Text(network_.status));
     status_->setToolTip(Text(network_.route_status));
 }
 void GraphWidget::Activate(const GraphNode& node) {
