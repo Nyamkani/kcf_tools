@@ -71,6 +71,8 @@ GraphWidget::GraphWidget(QWidget* parent):QWidget(parent) {
     actions_toggle_=toggle("Actions","graphActions",false);
     local_toggle_=toggle("Local","graphLocal",true);
     remote_toggle_=toggle("Remote","graphRemote",true);
+    auto* all_kinds=new QPushButton("Show all kinds");all_kinds->setObjectName("graphAllKinds");controls->addWidget(all_kinds);
+    connect(all_kinds,&QPushButton::clicked,this,[this]{topics_toggle_->setChecked(true);parameters_toggle_->setChecked(true);services_toggle_->setChecked(true);actions_toggle_->setChecked(true);});
     // Filters use a second row so controls remain usable on laptop screens.
     layout->addLayout(controls);controls=new QHBoxLayout;
     controls->addWidget(new QLabel("Host"));host_filter_=new QComboBox;host_filter_->setObjectName("graphHostFilter");
@@ -200,10 +202,12 @@ void GraphWidget::Draw() {
     scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-24,-24,24,24));
     std::size_t routes=0;for(const auto& e:model_.edges)if(e.network_route)++routes;
     status_->setText(QString("%1 nodes • %2 metadata relations • %3 verified network routes • ").arg(model_.nodes.size()).arg(model_.edges.size()-routes).arg(routes)+Text(network_.status));
-    status_->setToolTip(Text(network_.route_status));
+    QStringList hidden;if(!topics_toggle_->isChecked())hidden<<"Topics";if(!parameters_toggle_->isChecked())hidden<<"Parameters";if(!services_toggle_->isChecked())hidden<<"Services";if(!actions_toggle_->isChecked())hidden<<"Actions";
+    if(!hidden.isEmpty())status_->setText(status_->text()+" • Hidden by filter: "+hidden.join(", "));
+    status_->setToolTip(Text(network_.route_status)+"\nVisible endpoints depend on Topics / Parameters / Services / Actions toggles and Host/Application filters. Network routes require both endpoints visible.");
 }
 void GraphWidget::Activate(const GraphNode& node) {
-    if(!node.host.empty()){detail_->setPlainText(Text(node.detail));detail_->show();return;}
+    if(!node.host.empty()){detail_->setPlainText(Text(node.detail));detail_->show();if(open_remote)open_remote(node);return;}
     if(node.kind==GraphKind::Element){if(open_element)open_element(node.runtime);return;}
     if(node.kind!=GraphKind::Topic || !open_topic)return;
     if(node.endpoints.size()==1){open_topic(node.endpoints.front().identity);return;}

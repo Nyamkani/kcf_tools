@@ -3,6 +3,9 @@
 
 namespace kcf_tool {
 struct KcfBackend::Impl {};
+int KcfBackend::ConfigureNetwork(const NetworkOptions&,bool){return -ENOTSUP;}
+NetworkOptions KcfBackend::GetNetworkOptions() const{return {};}
+std::future<RemoteReply> KcfBackend::SubmitRemote(const RemoteCommand&){return RemoteUnavailable();}
 int KcfBackend::StartNetwork(const NetworkOptions&) { return -ENOTSUP; }
 void KcfBackend::StopNetwork() {}
 NetworkSnapshot KcfBackend::GetNetworkSnapshot() { return {}; }

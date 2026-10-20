@@ -1,0 +1,8 @@
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/CMakeFiles/kcf_tool_backend.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/CMakeFiles/kcf_tool_graph.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/CMakeFiles/kcf_tool.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/CMakeFiles/edit_cache.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/CMakeFiles/rebuild_cache.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/external/kcf/CMakeFiles/kcf_core.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/external/kcf/CMakeFiles/edit_cache.dir
+/home/kssvm/workspace/kcf/kcf_tools/build-v013/external/kcf/CMakeFiles/rebuild_cache.dir

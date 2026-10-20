@@ -1,12 +1,16 @@
 #pragma once
 #include "kcf_tool/backend/tool_backend.hpp"
 #include <memory>
+#include <mutex>
 
 namespace kcf_tool {
 class NetworkObserver;
 class KcfBackend final : public ToolBackend {
 public:
     KcfBackend();
+    int ConfigureNetwork(const NetworkOptions&,bool) override;
+    NetworkOptions GetNetworkOptions() const override;
+    std::future<RemoteReply> SubmitRemote(const RemoteCommand&) override;
     int StartNetwork(const NetworkOptions& = {});
     void StopNetwork();
     NetworkSnapshot GetNetworkSnapshot() override;
@@ -39,6 +43,8 @@ public:
     int CallService(const EndpointIdentity&, const DataSnapshot&, DataSnapshot&,
                     std::uint32_t timeout_ms=200, std::uint32_t retry_count=2) override;
 private:
+    mutable std::mutex network_mutex_;
+    NetworkOptions network_options_;
     std::shared_ptr<NetworkObserver> network_;
     struct Impl;
     std::unique_ptr<Impl> impl_;

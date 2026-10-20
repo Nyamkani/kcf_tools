@@ -1,0 +1,2 @@
+/usr/bin/ar qc libkcf_tool_graph.a CMakeFiles/kcf_tool_graph.dir/src/ui/graph_model.cpp.o CMakeFiles/kcf_tool_graph.dir/src/ui/network_graph_model.cpp.o CMakeFiles/kcf_tool_graph.dir/src/ui/graph_widget.cpp.o
+/usr/bin/ranlib libkcf_tool_graph.a

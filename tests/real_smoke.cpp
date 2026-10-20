@@ -48,7 +48,7 @@ int main(int argc,char** argv) {
     auto* graph=dynamic_cast<kcf_tool::GraphWidget*>(window.findChild<QWidget*>("graphTab"));
     assert(graph && graph->Model().nodes.size()==3 && graph->Model().edges.size()==3);
     for(const auto& edge:graph->Model().edges)assert(edge.endpoint.runtime.pid==fixture.processId());
-    assert(window.findChild<QTabWidget*>()->count()==7);
+    assert(window.findChild<QTabWidget*>()->count()==8);
     window.findChild<QListWidget*>("elementsList")->setCurrentRow(0);
     assert(window.findChild<QLabel*>("elementHeartbeat")->text()=="N/A");
     assert(window.findChild<QLabel*>("topicFrequency")->text()=="N/A");

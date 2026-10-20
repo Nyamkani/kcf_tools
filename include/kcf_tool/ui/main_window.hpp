@@ -20,6 +20,7 @@ class QTabWidget;
 
 namespace kcf_tool {
 class GraphWidget;
+class RemoteWorkspace;
 class MainWindow final : public QMainWindow {
 public:
     explicit MainWindow(std::unique_ptr<ToolBackend> backend,
@@ -51,6 +52,7 @@ private:
     std::unique_ptr<ToolBackend> backend_;
     QTabWidget* tabs_;
     GraphWidget* graph_;
+    RemoteWorkspace* remote_{nullptr};
     std::vector<ServiceInfo> services_;
     QListWidget* service_list_;
     QLabel* service_metadata_;

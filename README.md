@@ -252,7 +252,7 @@ ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 
 - 수동 Refresh로 worker snapshot을 표시합니다. Host/Application 필터,
   Local/Remote·T/P/S/A toggle, 기존 Zoom/Pan/Fit을 제공합니다.
 - Remote endpoint는 Host + boot + PID/start_ticks + registration으로 구분합니다.
-  Local 상세/쓰기/Call 화면으로 연결하지 않습니다. Local 기능은 기존과 같습니다.
+  최신 Remote Client API 구성에서는 Graph 선택을 해당 Host의 Remote 기능 화면으로 연결합니다. Local 기능은 기존과 같습니다.
 - Remote Topic Detail에서 Gateway별 Route·Counter·Rate를 확인합니다. Proxy Publish Hz는
   Application Subscriber 처리율이 아닙니다. 미측정/오류는 Measuring/Unavailable로 구분합니다.
 - Graph는 양쪽 Gateway의 전체 identity/session/route_id·송수신 역할과 ACTIVE 상태,
@@ -260,7 +260,9 @@ ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 
   metadata ownership은 점선이며, 이름/type만으로 cross-host 연결을 추정하지 않습니다.
 - Graph는 수동 Refresh입니다. 표시 후 자동 만료되지 않으며, 다음 Refresh/재그리기에서
   최신성 조건을 다시 검사합니다.
-- Tool은 forwarding/Gateway가 아닙니다. Remote Set/Call/Goal/Cancel UI도 없습니다.
+- Tool은 forwarding/Gateway가 아닙니다. 최신 Framework Remote Client API로 빌드하면
+  [Remote Control / Multi-Host UI](docs/REMOTE_CONTROL.md)의 Get/Set/Call/Goal/Cancel 및 Topic 구독을 제공합니다.
+  구형 Framework의 관측 전용 호환성은 유지합니다.
 
 빌드 요구사항, 현재 제한과 이번 검증은 [Network 관측](docs/NETWORK_OBSERVATION.md)을
 참고하십시오. 실제 물리 LAN 검증과 Framework Virtual LAN의 기존 PASS는 별도입니다.

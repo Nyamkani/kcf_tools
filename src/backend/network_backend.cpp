@@ -1,5 +1,8 @@
 #include "kcf_tool/backend/kcf_backend.hpp"
 #include <cerrno>
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+#include "remote_runtime.hpp"
+#endif
 #ifdef KCF_TOOL_HAS_NETWORK
 #include "kcf/network/peer_discovery.hpp"
 #ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
@@ -36,9 +39,9 @@ std::string Type(const net::TypeIdentity& t) {
 }
 std::string Capabilities(net::CapabilitySet bits) {
     const char* names[]={"DISCOVERY","REMOTE_PARAMETER","REMOTE_SERVICE","REMOTE_ACTION","REMOTE_TOPIC",
-        "TARGET_ENDPOINT","TARGET_HOST","TARGET_APPLICATION","TARGET_GROUP","TARGET_ALL","NETWORK_DIAGNOSTICS"};
+        "TARGET_ENDPOINT","TARGET_HOST","TARGET_APPLICATION","TARGET_GROUP","TARGET_ALL","NETWORK_DIAGNOSTICS","TYPE_DESCRIPTOR_QUERY","REMOTE_TOPIC_RECEIVER","TOPIC_ENDPOINT_SUBSCRIPTION"};
     std::string out;
-    for(unsigned i=0;i<11;++i)if(bits & (1ull<<i)){if(!out.empty())out+=", ";out+=names[i];}
+    for(unsigned i=0;i<14;++i)if(bits & (1ull<<i)){if(!out.empty())out+=", ";out+=names[i];}
     return out+" (raw="+std::to_string(bits)+")";
 }
 NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
@@ -60,7 +63,10 @@ NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
         host.compatibility=net::CompatibilityReasonName(peer.compatibility.reason);
         host.capabilities=Capabilities(peer.profile.capabilities);
         if(peer.metadata_ready)for(const auto& e:peer.endpoints){
-            RemoteEndpoint endpoint;endpoint.id=Key(e.identity);endpoint.runtime_id=Key(e.identity.runtime);
+            RemoteEndpoint endpoint;
+            endpoint.identity={Key(e.identity.runtime.host),Key(e.identity.runtime.boot_id),e.identity.runtime.pid,e.identity.runtime.process_start_ticks,e.identity.registration_id};endpoint.session=peer.session_id;
+            const auto wire=[](const net::TypeIdentity& t){return RemoteTypeIdentity{t.type_id,t.schema_id,t.encoding_id,t.payload_size};};
+            endpoint.value_type=wire(e.value_type);endpoint.request_type=wire(e.request_type);endpoint.response_type=wire(e.response_type);endpoint.feedback_type=wire(e.feedback_type);endpoint.id=Key(e.identity);endpoint.runtime_id=Key(e.identity.runtime);
             endpoint.application_id=e.application.pid?Key(e.application):host.id+":"+host.boot_id+":standalone";
             endpoint.application=e.application_name.empty()?"Standalone":e.application_name;
             endpoint.element=e.element_name;endpoint.name=e.name;
@@ -137,8 +143,20 @@ void Reconcile(std::map<std::string,CachedDiagnostics>& cache,const std::vector<
 }
 class NetworkObserver {
 public:
-    explicit NetworkObserver(NetworkOptions options):worker_([this,options]{Run(options);}) {}
-    ~NetworkObserver(){ {std::lock_guard<std::mutex> lock(mutex_);stop_=true;} wake_.notify_all();worker_.join(); }
+    explicit NetworkObserver(NetworkOptions options):snapshot_([]{NetworkSnapshot s;s.status="Network starting";return s;}()),worker_([this,options]{Run(options);}) {}
+    ~NetworkObserver(){ {std::lock_guard<std::mutex> lock(mutex_);stop_=true;} wake_.notify_all();
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+        std::shared_ptr<RemoteExecutor> executor;{std::lock_guard<std::mutex> lock(mutex_);executor=remote_.lock();}if(executor)executor->Stop();executor.reset();
+#endif
+        worker_.join();
+    }
+    std::future<RemoteReply> Submit(const RemoteCommand& c){
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+        std::lock_guard<std::mutex> lock(mutex_);auto executor=remote_.lock();return executor?executor->Submit(c):RemoteUnavailable(-ENOTCONN);
+#else
+        (void)c;return RemoteUnavailable();
+#endif
+    }
     NetworkSnapshot Snapshot(){std::lock_guard<std::mutex> lock(mutex_);return snapshot_;}
 private:
     void Run(const NetworkOptions& options) noexcept {
@@ -149,12 +167,25 @@ private:
             if(getrandom(config.host.bytes.data(),16,0)!=16 || getrandom(config.boot_id.bytes.data(),16,0)!=16){
                 std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Discovery identity generation failed";return;
             }
+            if(!options.host_id.empty()){
+                if(options.host_id.size()!=32){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Invalid Host ID: expected 32 hexadecimal digits";return;}
+                bool nonzero=false;
+                for(unsigned i=0;i<16;++i){auto digit=[](char c)->int{if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;if(c>='A'&&c<='F')return c-'A'+10;return -1;};int a=digit(options.host_id[2*i]),b=digit(options.host_id[2*i+1]);if(a<0||b<0){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Invalid Host ID";return;}config.host.bytes[i]=(a<<4)|b;nonzero|=config.host.bytes[i]!=0;}
+                if(!nonzero){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Host ID must not be zero";return;}
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+                config.profile.capabilities=net::CapabilityBit(net::Capability::DISCOVERY)|net::CapabilityBit(net::Capability::REMOTE_TOPIC_RECEIVER)|net::CapabilityBit(net::Capability::TARGET_ENDPOINT);
+#endif
+            }
             config.interface_address=options.interface_address;config.port=options.port;
             const int result=discovery.Start(config);
             if(result){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Discovery start failed: "+std::to_string(result);return;}
 #ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
             net::NetworkDiagnosticsClient client(discovery,config);
             std::map<std::string,CachedDiagnostics> cache;std::string cursor;
+#endif
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+            std::shared_ptr<RemoteExecutor> executor;
+            if(!options.host_id.empty()){executor=std::make_shared<RemoteExecutor>(discovery,config);std::lock_guard<std::mutex> lock(mutex_);remote_=executor;}
 #endif
             for(;;){
                 const auto tick=std::chrono::steady_clock::now()+std::chrono::milliseconds(100);
@@ -186,7 +217,11 @@ private:
                     }
                 }
 #endif
-                auto next=Convert(peers,discovery.GetLastError());
+                auto next=Convert(peers,discovery.GetLastError());next.observer_host=Key(config.host);
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+                next.remote_control_available=executor&&!executor->StartError();
+                if(executor&&executor->StartError())next.status+=" | Remote client start failed: "+std::to_string(executor->StartError());
+#endif
 #ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
                 next.route_status="Gateway diagnostics available in backend snapshot; no inferred network edges";
                 for(auto& host:next.hosts)host.diagnostics=cache.at(host.id).value;
@@ -194,21 +229,35 @@ private:
                 std::unique_lock<std::mutex> lock(mutex_);snapshot_=std::move(next);
                 if(wake_.wait_until(lock,tick,[this]{return stop_;}))break;
             }
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+            if(executor)executor->Stop();
+#endif
             discovery.Stop();
         } catch(...) {std::lock_guard<std::mutex> lock(mutex_);snapshot_.hosts.clear();snapshot_.status="Discovery worker failed";}
     }
     std::mutex mutex_;std::condition_variable wake_;bool stop_{false};
-    NetworkSnapshot snapshot_;std::thread worker_;
+    NetworkSnapshot snapshot_;
+#ifdef KCF_TOOL_HAS_REMOTE_CONTROL
+    std::weak_ptr<RemoteExecutor> remote_;
+#endif
+    std::thread worker_;
 };
 int KcfBackend::StartNetwork(const NetworkOptions& options) {
-    if(network_)return -EALREADY;
+    std::lock_guard<std::mutex> lock(network_mutex_);if(network_)return -EALREADY;network_options_=options;
     try{network_=std::make_shared<NetworkObserver>(options);return 0;}catch(...){return -EAGAIN;}
 }
-void KcfBackend::StopNetwork(){network_.reset();}
-NetworkSnapshot KcfBackend::GetNetworkSnapshot(){return network_?network_->Snapshot():NetworkSnapshot{};}
+void KcfBackend::StopNetwork(){std::shared_ptr<NetworkObserver> old;{std::lock_guard<std::mutex> lock(network_mutex_);old=std::move(network_);}old.reset();}
+NetworkSnapshot KcfBackend::GetNetworkSnapshot(){std::lock_guard<std::mutex> lock(network_mutex_);return network_?network_->Snapshot():NetworkSnapshot{};}
+std::future<RemoteReply> KcfBackend::SubmitRemote(const RemoteCommand& c){std::lock_guard<std::mutex> lock(network_mutex_);return network_?network_->Submit(c):RemoteUnavailable(-ENOTCONN);}
+NetworkOptions KcfBackend::GetNetworkOptions() const {std::lock_guard<std::mutex> lock(network_mutex_);return network_options_;}
+int KcfBackend::ConfigureNetwork(const NetworkOptions& options,bool enabled){StopNetwork();{std::lock_guard<std::mutex> lock(network_mutex_);network_options_=options;}return enabled?StartNetwork(options):0;}
+
 }
 #else
 namespace kcf_tool {
+int KcfBackend::ConfigureNetwork(const NetworkOptions&,bool){return -ENOTSUP;}
+NetworkOptions KcfBackend::GetNetworkOptions() const{return {};}
+std::future<RemoteReply> KcfBackend::SubmitRemote(const RemoteCommand&){return RemoteUnavailable();}
 int KcfBackend::StartNetwork(const NetworkOptions&){return -ENOTSUP;}
 void KcfBackend::StopNetwork(){}
 NetworkSnapshot KcfBackend::GetNetworkSnapshot(){return {};}

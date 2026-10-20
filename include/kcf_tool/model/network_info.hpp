@@ -6,7 +6,15 @@
 namespace kcf_tool {
 // Display DTOs only, not a wire protocol. Keys include host + boot + runtime +
 // registration; discovery session is separate freshness information.
+struct RouteEndpointIdentity {
+    std::string host_id, boot_id;
+    std::int32_t pid{};
+    std::uint64_t start_ticks{}, registration_id{};
+};
+struct RemoteTypeIdentity {std::uint64_t type_id{},schema_id{};std::uint32_t encoding_id{},payload_size{};};
 struct RemoteEndpoint {
+    RouteEndpointIdentity identity;std::uint64_t session{};
+    RemoteTypeIdentity value_type,request_type,response_type,feedback_type;
     std::string id, runtime_id, application_id;
     std::string application, element, name, kind, role, scope;
     std::string type, diagnostic;
@@ -16,11 +24,6 @@ struct RemoteEndpoint {
 // Every other state has no usable route data. Timestamps describe observation,
 // not a guarantee of current data; discovery freshness is rechecked each tick.
 enum class DiagnosticsState { UNAVAILABLE, UNSUPPORTED, INCOMPATIBLE, PENDING, VALID, TRUNCATED, LOST, ERROR, TIMEOUT };
-struct RouteEndpointIdentity {
-    std::string host_id, boot_id;
-    std::int32_t pid{};
-    std::uint64_t start_ticks{}, registration_id{};
-};
 enum class NetworkRateState { INVALID, MEASURING, VALID };
 struct NetworkCounterDelta {
     std::uint64_t packets_sent{}, packets_received{}, samples_published{}, dropped{}, duplicate{},
@@ -60,6 +63,7 @@ struct RemoteHost {
     RemoteNetworkDiagnostics diagnostics;
 };
 struct NetworkSnapshot {
+    std::string observer_host;bool remote_control_available{false};
     std::string status{"Network discovery disabled / unavailable"};
     std::string route_status{"External Gateway route/statistics observation API unavailable; no inferred network edges"};
     std::vector<RemoteHost> hosts;
@@ -67,5 +71,6 @@ struct NetworkSnapshot {
 struct NetworkOptions {
     std::string interface_address{"0.0.0.0"};
     std::uint16_t port{37651};
+    std::string host_id; // Empty: ephemeral read-only observer. Stable 32 hex digits: explicit control identity.
 };
 }

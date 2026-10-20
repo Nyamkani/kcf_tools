@@ -1,5 +1,6 @@
 #include "kcf_tool/ui/main_window.hpp"
 #include "kcf_tool/ui/graph_widget.hpp"
+#include "kcf_tool/ui/remote_workspace.hpp"
 #include <QFormLayout>
 #include <QTreeWidget>
 #include <QCloseEvent>
@@ -307,13 +308,16 @@ MainWindow::MainWindow(std::unique_ptr<ToolBackend> backend,
     statusBar()->addPermanentWidget(connection_status_);
     ShowParameter();
     Refresh();
+    remote_=new RemoteWorkspace(*backend_,*tabs_,*graph_,central);
+    layout->insertWidget(1,remote_);
 }
 
-MainWindow::~MainWindow() { if(service_thread_)service_thread_->wait();StopEcho(); }
+MainWindow::~MainWindow() { delete remote_;remote_=nullptr; if(service_thread_)service_thread_->wait();StopEcho(); }
 void MainWindow::closeEvent(QCloseEvent* event) {
     if(service_busy_){statusBar()->showMessage("Service call in progress. Close after it finishes.");event->ignore();return;}
     if(parameter_dirty_){statusBar()->showMessage("Unsaved parameter edits: Apply or Revert before closing.");event->ignore();return;}
     StopEcho();
+    if(remote_&&!remote_->BeginClose()){event->ignore();return;}
     QMainWindow::closeEvent(event);
 }
 

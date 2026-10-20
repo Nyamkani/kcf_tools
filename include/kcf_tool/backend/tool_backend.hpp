@@ -8,6 +8,7 @@
 #include "kcf_tool/model/dynamic_value.hpp"
 #include "kcf_tool/model/service_info.hpp"
 #include <cerrno>
+#include "kcf_tool/model/remote_control.hpp"
 #include <functional>
 #include <vector>
 
@@ -21,6 +22,9 @@ using TopicDataCallback = std::function<void(const DataSnapshot&)>;
 
 class ToolBackend {
 public:
+    virtual int ConfigureNetwork(const NetworkOptions&,bool) {return -ENOTSUP;}
+    virtual NetworkOptions GetNetworkOptions() const {return {};}
+    virtual std::future<RemoteReply> SubmitRemote(const RemoteCommand&) {return RemoteUnavailable();}
     virtual NetworkSnapshot GetNetworkSnapshot() { return {}; }
 
     virtual ~ToolBackend() = default;

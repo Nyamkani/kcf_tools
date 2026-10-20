@@ -19,6 +19,7 @@ public:
     std::function<void()> refresh;
     std::function<void(RuntimeIdentity)> open_element;
     std::function<void(EndpointIdentity)> open_topic;
+    std::function<void(const GraphNode&)> open_remote;
 private:
     void Draw();
     void Activate(const GraphNode&);
