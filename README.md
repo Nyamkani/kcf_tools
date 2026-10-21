@@ -5,6 +5,46 @@ Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`�
 
 ## v0.13 기준
 
+현재 버전은 **v0.13** (CMake **0.13.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.
+
+- Multi-Host Discovery / Host 선택 및 metadata 기반 Remote Application / Element / Endpoint 탐색
+- Network Diagnostics: Gateway별 Route identity/session·상태·9개 Counter와 Send/Receive/Proxy Publish Hz, Skipped/s
+- 양쪽 Gateway에서 확인한 ACTIVE Route만 연결하는 Verified Route Graph와 Remote 상세
+- Remote Parameter Get / Set / Readback
+- Remote Service Call / Response
+- Remote Action Goal / Feedback / Result / Cancel (ACK와 Terminal State 구분)
+- Remote Topic Subscribe / Unsubscribe, 실제 Payload·Sequence 및 수신률 표시
+- TypeDescriptor 기반 generic scalar/fixed-array 입력·출력과 Framework canonical codec 사용
+
+Local 화면은 기존 Runtime 탐색, Topic Echo, Parameter Editor, Service Call을 유지합니다.
+Remote Host를 선택하면 해당 Host의 탐색·조작 화면을 사용하며, Local Runtime 연결과
+Network 상태를 별도로 표시합니다. SystemStatus는 Local 전용입니다.
+
+Remote Control은 KCF Framework v5.3의 공개 `RemoteControlClient`, `RemoteTopicClient`,
+TypeDescriptor Query 및 `NetworkDiagnosticsClient` API를 사용합니다. 해당 API가 포함된
+Framework로 빌드해야 합니다. Tool은 Gateway/forwarder나 Application의 장치 제어 로직을 대신하지 않습니다.
+Remote Client API가 없는 구성에서는 제공되는 API 범위의 관측 기능을 유지하며,
+Diagnostics API가 없는 구형 Network Framework는 Discovery-only, Network API도 없으면 Local-only,
+Framework를 지정하지 않으면 Mock/stub입니다.
+
+2026-10-21 **사용자 확인 물리 LAN 수동 검증**에서 Orange Pi 5+ ↔ Ubuntu VM Bridged LAN의
+실제 Qt GUI로 Discovery/Metadata, Topic 수신(약 **45.96Hz 관측**), Parameter Get/Set/Readback,
+Service Call/Response 및 Action 성공·Cancel을 확인했습니다.
+이는 전체 안정성 인증이 아니며, 개별 프로그램 재시작·LAN 단절 복구와 실제 다중 Gateway 동시 제어는
+추가 검증이 필요합니다. [물리 LAN 검증 및 제한](docs/REMOTE_CONTROL.md#물리-lan-수동-검증--사용자-확인)을 참고하십시오.
+
+[Remote Control 사용·권한 설정](docs/REMOTE_CONTROL.md),
+[Network 계약](docs/NETWORK_OBSERVATION.md#v013-network-diagnostics-계약),
+[Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph)를 참고하십시오.
+이번 문서 최신화에서는 빌드·테스트를 재실행하지 않았고 버전·Release·Tag를 생성하지 않습니다.
+
+## Historical — 초기 v0.13 Diagnostics-only 단계
+
+아래의 “현재/이번”과 미커밋 Framework 기준은 KT-ND3~KT-ND5B 당시 기록입니다.
+기능 범위·검증 수치·실패 및 재실행 이력을 보존하며, 이후 Remote Control 구현과 사용자 물리 LAN 검증은 위 설명과 구분합니다.
+[v0.13 릴리스 노트](docs/V0_13_RELEASE_NOTES.md)는 현재 v0.13 기능과 후속 물리 LAN 검증을 포함합니다.
+초기 Diagnostics 구현·검증 이력은 릴리스 노트 내부의 Historical 기록으로 구분합니다.
+
 현재 버전은 **v0.13** (CMake **0.13.0**)입니다. 기존 Remote Discovery와 Local 기능을
 유지하며 다음 read-only Network 관측을 추가합니다.
 
@@ -74,9 +114,10 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-현재 v0.13 Diagnostics 빌드는 **KCF v5.3.0 dev working tree (F-ND5B 완료)**를
+현재 v0.13 Remote 기능 빌드는 **KCF v5.3의 Remote Control/Topic Client, TypeDescriptor Query 및 Diagnostics 공개 API가 포함된 소스**를
 `KCF_SOURCE_DIR`로 참조합니다. 소스를 복사하지 않으며 HEAD만으로 미커밋 변경을
 식별할 수 없으므로 `git status`와 적용된 API도 확인합니다. 새 빌드 디렉터리를 사용합니다.
+초기 Diagnostics-only 빌드의 F-ND5B 기준은 위 Historical 기록으로 보존합니다.
 
 Historical: v0.12의 공개 Network 빌드 기준은 KCF v5.2
 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`였습니다. 아래의 과거 검증 설명은 당시 기준입니다.
@@ -264,10 +305,13 @@ ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 
   [Remote Control / Multi-Host UI](docs/REMOTE_CONTROL.md)의 Get/Set/Call/Goal/Cancel 및 Topic 구독을 제공합니다.
   구형 Framework의 관측 전용 호환성은 유지합니다.
 
-빌드 요구사항, 현재 제한과 이번 검증은 [Network 관측](docs/NETWORK_OBSERVATION.md)을
-참고하십시오. 실제 물리 LAN 검증과 Framework Virtual LAN의 기존 PASS는 별도입니다.
+Diagnostics 계약과 과거 자동 검증은 [Network 관측](docs/NETWORK_OBSERVATION.md),
+현재 Remote 조작과 사용자 물리 LAN 검증은 [Remote Control](docs/REMOTE_CONTROL.md)을 참고하십시오.
+물리 LAN 수동 결과와 Virtual LAN/Qt offscreen 자동 결과는 별도입니다.
 
 ## 동작
+
+아래는 기존 Local 기능의 동작입니다. Remote 조작은 [Remote Control](docs/REMOTE_CONTROL.md)을 따릅니다.
 
 - Applications 트리는 Supervisor identity별 Application과 소속 Runtime을 표시합니다.
 - membership에 연결되지 않은 Runtime은 Standalone에 표시합니다. 이름 대신 PID + start_ticks로 구분합니다.

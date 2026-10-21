@@ -1,6 +1,6 @@
 # Generic Remote Control / Multi-Host UI
 
-현재 working tree의 확장입니다. Tool 버전이나 공개 Release/tag를 변경하지 않습니다.
+KCF Tools **v0.13**의 현재 Remote 기능을 설명합니다. Tool 버전이나 공개 Release/tag를 변경하지 않습니다.
 Framework의 `RemoteControlClient`, `RemoteTopicClient`, TypeDescriptor Query가 있는
 최신 sibling working tree를 사용합니다. 구형 Framework는 기존 관측 기능을 유지하고,
 Framework 없는 Mock/stub에서는 Remote 조작이 지원되지 않습니다.
@@ -34,7 +34,7 @@ IP로 권한을 추정하지 않습니다. Gateway의 remote scope/type 등록�
 필요합니다. Diagnostics/검증된 Route Graph를 사용하려면 양쪽 Gateway의
 `diagnostics_enabled`도 활성화합니다. 현재 Tool Topic client는 Gateway Topic UDP 기본 포트 `37652`를 사용하고,
 Tool 수신 포트는 OS가 할당합니다. Discovery UDP, Gateway Control TCP, Topic UDP가 통신 가능한 신뢰된 LAN에서
-사용합니다. Host allowlist는 TLS 인증을 대신하지 않습니다.
+사용합니다. Host ID allowlist는 암호학적 인증이 아니며 TLS 인증을 대신하지 않습니다.
 
 ## 사용
 
@@ -96,9 +96,12 @@ QT_QPA_PLATFORM=offscreen unshare --user --map-root-user --net --ipc --mount \
 출력 디렉터리의 JSON 및 stderr 로그를 확인합니다. 이 검증은 Virtual LAN/Qt offscreen이며
 물리 LAN 및 실제 데스크톱 GUI 수동 검증을 대신하지 않습니다.
 
-## 이번 작업의 검증 결과
+<a id="이번-작업의-검증-결과"></a>
 
-2026-10-21, 세 구성 모두 Debug 빌드:
+## Historical — Remote 통합 당시 자동 검증 결과
+
+다음은 2026-10-21 Remote 통합 당시의 기존 자동 검증 기록입니다. 세 구성 모두 Debug 빌드였으며,
+이번 문서 최신화에서 빌드·테스트를 재실행한 결과가 아닙니다.
 
 | 구성 | 전체 CTest |
 | --- | --- |
@@ -123,9 +126,54 @@ Edge 1개, Query 실패/LOST/재시작/Diagnostics 비활성화 및 10초 freshn
 없어 원인은 미확정입니다. 로그 추가 후 4회 연속 통과했으며, 이 결과를 최초부터 모두
 통과한 것으로 해석하지 않습니다. 제품 Timeout 기본값은 변경하지 않았습니다.
 
-물리 LAN과 실제 데스크톱 GUI 수동 검증은 미실행입니다.
+위 자동 검증 단계 당시에는 물리 LAN과 실제 데스크톱 GUI 수동 검증이 미실행이었습니다.
+이후 사용자가 확인한 물리 LAN 결과는 다음 절에 별도로 기록합니다.
 
-## 변경 파일
+## 물리 LAN 수동 검증 — 사용자 확인
+
+다음은 **사용자가 확인한 2026-10-21 수동 검증 결과**입니다. 자동 테스트나 이번 문서 작업에서의 재실행 결과가 아닙니다.
+
+- Framework v5.3 / KCF Tools v0.13
+- Orange Pi 5+ ↔ Ubuntu VM Bridged LAN
+- 실제 Qt GUI 사용
+
+| 검증 항목 | 사용자 확인 결과 |
+| --- | --- |
+| Discovery / Metadata | PASS |
+| Remote Topic Subscribe 및 실제 Payload 수신 | PASS, 약 45.96Hz 관측 |
+| Parameter Get / Set / Readback | PASS |
+| Service Call / Response | PASS |
+| Action Goal ACK / Feedback / SUCCEEDED Result | PASS |
+| Action Cancel ACK / CANCELED Terminal | PASS |
+
+Cancel Result는 `count=-1, enabled=false, gain=1.5`였으며,
+`execution_unknown=0`, `cancel_unknown=0`을 확인했습니다.
+약 45.96Hz는 해당 환경의 관측값으로, 보장 전송률이나 Application 처리율이 아닙니다.
+이 기록을 전체 안정성 인증 또는 모든 재연결 시나리오의 PASS로 해석하지 않습니다.
+
+### 문제 및 해결 이력
+
+- VM UFW가 Discovery UDP `37651`을 차단해 Peer LOST가 발생했습니다.
+- 동일 Host ID의 Gateway 중복 실행으로 Endpoint 발견 문제가 발생했습니다.
+- Action 예제의 기본 2초 완료 시간으로 Cancel 수동 시험이 어려워,
+  Orange Pi에서 테스트용 10초 설정을 사용했습니다. Tool의 Timeout 기본값 변경을 뜻하지 않습니다.
+- 위 문제를 정리하고 양쪽 프로그램을 전체 재시작한 뒤 정상 연결 및 Cancel 검증을 완료했습니다.
+  Gateway 또는 Tool 한쪽만 재시작한 복구 검증으로 간주하지 않습니다.
+
+## 남은 제한사항
+
+- 물리 LAN에서 Gateway만 재시작했을 때의 자동 재발견·복구는 추가 검증이 필요합니다.
+- Tool만 재시작했을 때의 복구도 추가 검증이 필요합니다.
+- 일시적인 LAN 단절 후 복구는 추가 검증이 필요합니다.
+- 실제 다중 Gateway 동시 제어는 추가 검증이 필요합니다.
+- 기존 Action의 자동 재연결과 불확실한 변경 요청의 자동 재시도는 지원하지 않습니다.
+- Host ID allowlist는 암호학적 인증이 아닙니다.
+
+위의 Virtual LAN 재시작/Session 테스트 PASS를 물리 LAN의 미검증 복구 항목에 대신 적용하지 않습니다.
+
+<a id="변경-파일"></a>
+
+## Historical — Remote 통합 당시 변경 파일
 
 - 빌드/실행/문서: `CMakeLists.txt`, `src/main.cpp`, `README.md`, `docs/REMOTE_CONTROL.md`
 - Backend: `include/kcf_tool/backend/tool_backend.hpp`,
