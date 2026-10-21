@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-project(kcf_tool VERSION 0.13.0 LANGUAGES CXX)
+project(kcf_tool VERSION 0.14.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(KCF_TOOL_BUILD_GUI "Build Qt Widgets application" ON)
 option(KCF_TOOL_BUILD_TESTS "Build backend and widget smoke checks" OFF)
-set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (optional; v0.13 Diagnostics uses KCF v5.3 public API; older Network API supports Discovery-only; absent KCF uses Mock/stub)")
+set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (optional; v0.14 Remote Control/Topic and Diagnostics target KCF v5.4 public APIs; older API configurations retain Local/Discovery support; absent KCF uses Mock/stub)")
 
 set(KCF_TOOL_NETWORK_DIAGNOSTICS OFF)
 set(KCF_TOOL_REMOTE_CONTROL OFF)

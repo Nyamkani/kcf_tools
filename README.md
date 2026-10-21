@@ -1,11 +1,11 @@
-# KCF Tool — v0.13
+# KCF Tool — v0.14
 
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,
 기본 `MockBackend`와 선택적인 실제 `KcfBackend`를 제공합니다.
 
-## v0.13 기준
+## v0.14 기준
 
-현재 버전은 **v0.13** (CMake **0.13.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.
+현재 버전은 **v0.14** (CMake **0.14.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.
 
 - Multi-Host Discovery / Host 선택 및 metadata 기반 Remote Application / Element / Endpoint 탐색
 - Network Diagnostics: Gateway별 Route identity/session·상태·9개 Counter와 Send/Receive/Proxy Publish Hz, Skipped/s
@@ -20,23 +20,30 @@ Local 화면은 기존 Runtime 탐색, Topic Echo, Parameter Editor, Service Cal
 Remote Host를 선택하면 해당 Host의 탐색·조작 화면을 사용하며, Local Runtime 연결과
 Network 상태를 별도로 표시합니다. SystemStatus는 Local 전용입니다.
 
-Remote Control은 KCF Framework v5.3의 공개 `RemoteControlClient`, `RemoteTopicClient`,
+Remote Control은 KCF Framework v5.4의 공개 `RemoteControlClient`, `RemoteTopicClient`,
 TypeDescriptor Query 및 `NetworkDiagnosticsClient` API를 사용합니다. 해당 API가 포함된
 Framework로 빌드해야 합니다. Tool은 Gateway/forwarder나 Application의 장치 제어 로직을 대신하지 않습니다.
 Remote Client API가 없는 구성에서는 제공되는 API 범위의 관측 기능을 유지하며,
 Diagnostics API가 없는 구형 Network Framework는 Discovery-only, Network API도 없으면 Local-only,
 Framework를 지정하지 않으면 Mock/stub입니다.
 
-2026-10-21 **사용자 확인 물리 LAN 수동 검증**에서 Orange Pi 5+ ↔ Ubuntu VM Bridged LAN의
+Historical: 2026-10-21 **Framework v5.3 / Tools v0.13 소스의 사용자 확인 물리 LAN 수동 검증**에서 Orange Pi 5+ ↔ Ubuntu VM Bridged LAN의
 실제 Qt GUI로 Discovery/Metadata, Topic 수신(약 **45.96Hz 관측**), Parameter Get/Set/Readback,
 Service Call/Response 및 Action 성공·Cancel을 확인했습니다.
-이는 전체 안정성 인증이 아니며, 개별 프로그램 재시작·LAN 단절 복구와 실제 다중 Gateway 동시 제어는
+이는 v0.14 재검증이나 전체 안정성 인증이 아니며, 개별 프로그램 재시작·LAN 단절 복구와 실제 다중 Gateway 동시 제어는
 추가 검증이 필요합니다. [물리 LAN 검증 및 제한](docs/REMOTE_CONTROL.md#물리-lan-수동-검증--사용자-확인)을 참고하십시오.
 
 [Remote Control 사용·권한 설정](docs/REMOTE_CONTROL.md),
 [Network 계약](docs/NETWORK_OBSERVATION.md#v013-network-diagnostics-계약),
 [Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph)를 참고하십시오.
-이번 문서 최신화에서는 빌드·테스트를 재실행하지 않았고 버전·Release·Tag를 생성하지 않습니다.
+v0.14의 실제 빌드·검증 범위와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)를 따릅니다.
+Commit/push/Tag/GitHub Release는 생성하지 않습니다.
+
+## Historical — v0.13 Remote Control 개발 및 검증
+
+v0.13에서 Generic Remote Control / Multi-Host UI를 구현했고 Framework v5.3과 물리 LAN 수동 검증을 진행했습니다.
+[v0.13 릴리스 노트](docs/V0_13_RELEASE_NOTES.md)의 당시 커밋 기준점·PASS/FAIL·재실행 이력은 보존합니다.
+그 결과를 v0.14 / Framework v5.4의 재검증 결과로 소급하지 않습니다.
 
 ## Historical — 초기 v0.13 Diagnostics-only 단계
 
@@ -114,10 +121,12 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-현재 v0.13 Remote 기능 빌드는 **KCF v5.3의 Remote Control/Topic Client, TypeDescriptor Query 및 Diagnostics 공개 API가 포함된 소스**를
+현재 v0.14 Remote 기능 빌드는 **KCF v5.4의 Remote Control/Topic Client, TypeDescriptor Query 및 Diagnostics 공개 API가 포함된 소스**를
 `KCF_SOURCE_DIR`로 참조합니다. 소스를 복사하지 않으며 HEAD만으로 미커밋 변경을
 식별할 수 없으므로 `git status`와 적용된 API도 확인합니다. 새 빌드 디렉터리를 사용합니다.
 초기 Diagnostics-only 빌드의 F-ND5B 기준은 위 Historical 기록으로 보존합니다.
+v0.14의 Framework 검증 기준은 dev `5ae507a8b866015360686463c1ce03905c4e39af` (v5.4.0)이며,
+실행 결과는 [릴리스 노트](docs/V0_14_RELEASE_NOTES.md)에 기록합니다.
 
 Historical: v0.12의 공개 Network 빌드 기준은 KCF v5.2
 `d41fc2fc71d3b60b0475035ec56ac32b92ffb849`였습니다. 아래의 과거 검증 설명은 당시 기준입니다.
@@ -133,21 +142,21 @@ Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고
 다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
 이전 Core를 계속 사용하며, GUI Refresh로 실행 파일이 교체되지 않습니다.
 `readlink /proc/<GUI_PID>/exe`가 `(deleted)`로 끝나면 rebuild 전 프로세스인지
-확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v013/kcf_tool`로
+확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v014/kcf_tool`로
 비교할 수 있습니다. 구버전 Tool의 `Protocol error` 사례와 정확한 반환 경로는
 [수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 기록했습니다.
 
 ```sh
 git -C /home/kssvm/workspace/kcf/kss_control_framework rev-parse HEAD
 git -C /home/kssvm/workspace/kcf/kss_control_framework status --short
-cmake -S . -B build-v013 \
+cmake -S . -B build-v014 \
   -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
   -DKCF_TOOL_BUILD_TESTS=ON \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
-cmake --build build-v013 -j
-./build-v013/kcf_tool --backend kcf
-ctest --test-dir build-v013 --output-on-failure
+cmake --build build-v014 -j
+./build-v014/kcf_tool --backend kcf
+ctest --test-dir build-v014 --output-on-failure
 ```
 
 Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
@@ -210,7 +219,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 ### Application과 GUI 수동 실행
 
 위 빌드를 완료한 후 각 명령을 별도 터미널에서 실행합니다. 실제 Tool GUI는
-앞의 `build-v013` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
+앞의 `build-v014` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
 
 ```sh
 # 터미널 1: Alpha — sensor / processor
@@ -229,7 +238,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 
 ```sh
 # 터미널 4: Tool 저장소 디렉터리에서 실행
-./build-v013/kcf_tool --backend kcf
+./build-v014/kcf_tool --backend kcf
 ```
 
 Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
@@ -274,16 +283,16 @@ Graph 탭은 현재 discovery 스냅샷으로 Application별 Element와 Topic �
 같은 이름의 Topic/Parameter는 하나의 논리 채널 노드로 묶되 각 discovery registration의
 관계는 유지합니다. 고정된 두 열에 identity/이름 순서로 배치하며 force-directed 배치는
 사용하지 않습니다. 실제 통신 성공 여부, 데이터 전달량, 미발견 client 관계는 추정하지 않습니다.
-Remote metadata와 실제 Diagnostics Route 관측은 아래 v0.13 Network 확장으로 제공합니다. [Graph 구현 및 검증](docs/GRAPH.md)을 참고하십시오.
+Remote metadata와 실제 Diagnostics Route 관측은 아래 v0.14 Network 기능으로 제공합니다. [Graph 구현 및 검증](docs/GRAPH.md)을 참고하십시오.
 
-## v0.13 Network 관측
+## v0.14 Network 관측
 
-KCF v5.3 공개 Diagnostics API가 있는 위 working tree로 빌드하면, 기존 Discovery와 함께
+KCF v5.4 공개 Diagnostics API가 있는 Framework로 빌드하면, 기존 Discovery와 함께
 ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 조회합니다.
 구형 Network Framework에서는 기존 Remote Discovery-only 기능을 유지합니다.
 
 ```sh
-./build-v013/kcf_tool --backend kcf --network-interface 192.168.1.10
+./build-v014/kcf_tool --backend kcf --network-interface 192.168.1.10
 # loopback 테스트: --network-interface 127.0.0.1 --network-port 37651
 # Local 전용: --backend kcf --no-network
 ```

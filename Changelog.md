@@ -1,7 +1,20 @@
 # Changelog
 
 KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
-개별 작업일을 소급 지정하지 않고 진행 순서대로 정리했습니다.
+개별 작업일을 소급 지정하지 않고 기존 단계별 이력은 진행 순서대로 보존합니다. 최신 버전 요약은 상단에 구분합니다.
+
+## v0.14 — Generic Remote Control / Multi-Host UI
+
+- Tool 버전을 v0.14 / CMake 0.14.0으로 정합화하고 Framework v5.4를 연동 기준으로 문서화했습니다.
+- Multi-Host Discovery/Host 선택과 metadata 기반 Remote Application/Element/Endpoint 탐색을 제공합니다.
+- Remote Parameter Get/Set/Readback, Service Call/Response를 제공합니다.
+- Remote Action Goal/Feedback/Result/Cancel과 ACK/Terminal State 구분을 제공합니다.
+- Remote Topic Subscribe/Unsubscribe, Payload/Sequence 및 수신률을 표시합니다.
+- TypeDescriptor 기반 generic scalar/fixed-array 입력·출력과 기존 Diagnostics/Verified Route Graph를 유지합니다.
+- 이 기능은 v0.13 후속 개발 이력을 이어받으며, 이번 정합화에서 제품 동작·Network 프로토콜·빌드 경로는 변경하지 않습니다.
+- 2026-10-21 물리 LAN 결과는 당시 Framework v5.3 / Tools v0.13 기록이며 v0.14 재검증으로 소급하지 않습니다.
+- 이번 실제 빌드·테스트 결과와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)에 기록합니다.
+- 아래 v0.13 및 이전 항목의 “현재/이번”은 각 작업 당시 기록입니다. PASS/FAIL·재실행 이력을 보존합니다.
 
 ## KT-0 — Independent Tool Project Base
 
@@ -247,4 +260,4 @@ v5.3.0 dev의 F-ND5B 완료 미커밋 working tree이며 공개 SHA/tag로 표�
 - [Framework v5.1 수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)
 
 KT-7의 기존 보고서는 당시 기록이며, KT-7의 최종 PASS는 R2B.1 검증 결과를 따릅니다.
-현재 Tool 버전과 Framework 연동 상태는 위 v0.13 기록을 따르며, v0.12 기록은 Historical로 보존합니다.
+현재 Tool 버전과 Framework 연동 기준은 위 v0.14 기록을 따릅니다. v0.13 및 이전 기록은 Historical로 보존합니다.

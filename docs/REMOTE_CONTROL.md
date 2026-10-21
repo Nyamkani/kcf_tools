@@ -1,6 +1,8 @@
 # Generic Remote Control / Multi-Host UI
 
-KCF Tools **v0.13**의 현재 Remote 기능을 설명합니다. Tool 버전이나 공개 Release/tag를 변경하지 않습니다.
+KCF Tools **v0.14** (CMake **0.14.0**)의 현재 Remote 기능을 설명합니다.
+Framework 연동 기준은 **KCF v5.4**이며, 실제 검증 범위와 Framework 커밋 기준은
+[v0.14 릴리스 노트](V0_14_RELEASE_NOTES.md)에 구분합니다. 공개 Release/tag는 생성하지 않습니다.
 Framework의 `RemoteControlClient`, `RemoteTopicClient`, TypeDescriptor Query가 있는
 최신 sibling working tree를 사용합니다. 구형 Framework는 기존 관측 기능을 유지하고,
 Framework 없는 Mock/stub에서는 Remote 조작이 지원되지 않습니다.
