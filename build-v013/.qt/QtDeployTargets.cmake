@@ -1,8 +1,0 @@
-set(__QT_DEPLOY_TARGET_kcf_core_FILE /home/kssvm/workspace/kcf/kcf_tools/build-v013/external/kcf/libkcf_core.a)
-set(__QT_DEPLOY_TARGET_kcf_core_TYPE STATIC_LIBRARY)
-set(__QT_DEPLOY_TARGET_kcf_tool_backend_FILE /home/kssvm/workspace/kcf/kcf_tools/build-v013/libkcf_tool_backend.a)
-set(__QT_DEPLOY_TARGET_kcf_tool_backend_TYPE STATIC_LIBRARY)
-set(__QT_DEPLOY_TARGET_kcf_tool_graph_FILE /home/kssvm/workspace/kcf/kcf_tools/build-v013/libkcf_tool_graph.a)
-set(__QT_DEPLOY_TARGET_kcf_tool_graph_TYPE STATIC_LIBRARY)
-set(__QT_DEPLOY_TARGET_kcf_tool_FILE /home/kssvm/workspace/kcf/kcf_tools/build-v013/kcf_tool)
-set(__QT_DEPLOY_TARGET_kcf_tool_TYPE EXECUTABLE)

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libkcf_tool_backend.a CMakeFiles/kcf_tool_backend.dir/src/backend/mock_backend.cpp.o CMakeFiles/kcf_tool_backend.dir/src/backend/kcf_backend.cpp.o CMakeFiles/kcf_tool_backend.dir/src/backend/value_codec.cpp.o CMakeFiles/kcf_tool_backend.dir/src/backend/network_backend.cpp.o
-/usr/bin/ranlib libkcf_tool_backend.a
