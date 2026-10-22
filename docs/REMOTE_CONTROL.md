@@ -189,5 +189,3 @@ Cancel Result는 `count=-1, enabled=false, gain=1.5`였으며,
 - 테스트: `tests/network_e2e_fixture.cpp`, `tests/remote_workspace.cpp`,
   `tests/remote_control_e2e.py`, `tests/real_smoke.cpp`, `tests/smoke.cpp`
 
-Framework 소스와 기존 `build-v013/` 변경은 건드리지 않았습니다.
-Commit/push 및 버전 변경은 수행하지 않았습니다.

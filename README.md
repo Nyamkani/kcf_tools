@@ -20,7 +20,7 @@ Local 화면은 기존 Runtime 탐색, Topic Echo, Parameter Editor, Service Cal
 Remote Host를 선택하면 해당 Host의 탐색·조작 화면을 사용하며, Local Runtime 연결과
 Network 상태를 별도로 표시합니다. SystemStatus는 Local 전용입니다.
 
-Remote Control은 KCF Framework v5.4의 공개 `RemoteControlClient`, `RemoteTopicClient`,
+Remote Control은 KCF Framework v5.4/v5.5의 공개 `RemoteControlClient`, `RemoteTopicClient`,
 TypeDescriptor Query 및 `NetworkDiagnosticsClient` API를 사용합니다. 해당 API가 포함된
 Framework로 빌드해야 합니다. Tool은 Gateway/forwarder나 Application의 장치 제어 로직을 대신하지 않습니다.
 Remote Client API가 없는 구성에서는 제공되는 API 범위의 관측 기능을 유지하며,
@@ -37,7 +37,33 @@ Service Call/Response 및 Action 성공·Cancel을 확인했습니다.
 [Network 계약](docs/NETWORK_OBSERVATION.md#v013-network-diagnostics-계약),
 [Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph)를 참고하십시오.
 v0.14의 실제 빌드·검증 범위와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)를 따릅니다.
-Commit/push/Tag/GitHub Release는 생성하지 않습니다.
+
+## Framework v5.5 호환성 검증 — 2026-10-22
+
+Tools 버전은 **v0.14 / 0.14.0**을 유지합니다. Framework dev
+`f184787d7d68e8e1d3adbcd27d9ee09d170893a9` (**5.5.0**)의 공개 API로 검증했습니다.
+`KCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework`이며, Framework의 기존 미커밋 문서 변경은
+그대로 두고 소스는 변경하지 않았습니다. 기존 v5.4 검증은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)에 보존합니다.
+
+- 새 `/tmp/kt-v55` Debug configure/build 및 Qt 6.9.3 빌드: 최초 PASS.
+- 전체 CTest: **19/19 PASS, 50.28초**, 최초 실행. 격리된 Loopback/SHM에서 Local Application/Element 탐색,
+  Topic Echo·재연결(depth 1/4), Parameter, Service, Graph, Network Discovery/Diagnostics와 Qt offscreen 회귀를 실행했습니다.
+- 별도 `/tmp/kt-v55-mock`의 KCF 없는 Debug configure/build 및 CTest: 최초 **6/6 PASS, 2.75초**.
+- 기존 `tests/remote_control_e2e.py`의 **Virtual LAN / Qt offscreen E2E: 최초 PASS**.
+  Remote Parameter Readback, Service, Action, Topic, Session 변경, GUI 재설정, 진행 중 Stop을 확인했습니다.
+  의도적 Timeout은 `execution_unknown=1`, `response_received=0`, Service 실행 1회로 확인했습니다.
+- 이번 검증에는 실패 후 재실행이 없었습니다. 로그는 `/tmp/kt-v55-tests.log`, `/tmp/kt-v55-mock-tests.log`,
+  `/tmp/kt-v55-remote-e2e/results.json`에 있으며 임시 개발 파일입니다.
+
+v5.5 `ApplicationState::STOPPED`를 표시하도록 변환을 추가했습니다. 구형 Framework 헤더에는
+STOPPED가 없어도 빌드 가능하도록 처리하며, 기존 상태 변환과 enum 숫자값은 변경하지 않습니다.
+Supervisor 종료 후 metadata가 제거될 수 있으므로 STOPPED의 영구 관측은 요구하지 않습니다.
+real fixture는 Setup 성공 후 Run에 진입하고 테스트가 실제 RUNNING/ERROR를 확인하므로,
+`Setup()==0`이 RUNNING 보장은 아닌 v5.5 계약과 호환됩니다.
+
+물리 LAN·실제 데스크톱 GUI 수동 시험과 구형 Framework 전체 재빌드는 이번에 수행하지 않았습니다.
+RemoteTopicClient의 기존 간헐적 Timeout은 **Known Issue**로 유지하며 이번 PASS로 해결되었다고 판단하지 않습니다.
+Timeout 증가·임의 sleep·자동 retry·Framework 수정은 하지 않았습니다.
 
 ## Historical — v0.13 Remote Control 개발 및 검증
 
@@ -80,7 +106,7 @@ Framework 최초 7/8 및 Topic·Conflict/Action·Explorer의 간헐적 실패/�
 
 [Network 계약](docs/NETWORK_OBSERVATION.md#v013-network-diagnostics-계약),
 [Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph),
-[Changelog](Changelog.md)를 참고하십시오. 이번 작업은 commit/push/tag/GitHub Release를 생성하지 않습니다.
+[Changelog](Changelog.md)를 참고하십시오.
 
 ## Historical — v0.12 기준
 

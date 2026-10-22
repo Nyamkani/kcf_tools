@@ -4,7 +4,6 @@
 v0.13 후속 개발의 Generic Remote Control / Multi-Host UI를 이어받고,
 Framework 연동 기준을 **KCF v5.4**로 정합화한다.
 이번 변경은 버전 메타데이터와 문서에 한정되며 제품 동작·Network 프로토콜·테스트 코드를 변경하지 않는다.
-Commit/push/Tag/GitHub Release는 생성하지 않는다.
 
 ## Framework 연동과 기능
 

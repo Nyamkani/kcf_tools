@@ -15,7 +15,12 @@ namespace kcf_tool {
 namespace {
 template<class F> int Guard(F f){try{return f();}catch(const std::bad_alloc&){return -ENOMEM;}catch(...){return -EIO;}}
 std::string State(kcf::ProcessState s){switch(s){case kcf::ProcessState::STOPPED:return "STOPPED";case kcf::ProcessState::STARTING:return "STARTING";case kcf::ProcessState::RUNNING:return "RUNNING";case kcf::ProcessState::STOPPING:return "STOPPING";case kcf::ProcessState::ERROR:return "ERROR";}return "UNKNOWN";}
-std::string State(kcf::ApplicationState s){switch(s){case kcf::ApplicationState::INITIALIZING:return "INITIALIZING";case kcf::ApplicationState::RUNNING:return "RUNNING";case kcf::ApplicationState::ERROR:return "ERROR";case kcf::ApplicationState::RESETTING:return "RESETTING";case kcf::ApplicationState::SHUTTING_DOWN:return "SHUTTING_DOWN";}return "UNKNOWN";}
+// STOPPED was added in Framework v5.5; keep older public enum headers buildable.
+template<class S> auto StoppedState(S s, int) -> decltype(S::STOPPED, std::string{}) {
+    return s == S::STOPPED ? "STOPPED" : "UNKNOWN";
+}
+template<class S> std::string StoppedState(S, ...) { return "UNKNOWN"; }
+std::string State(kcf::ApplicationState s){switch(s){case kcf::ApplicationState::INITIALIZING:return "INITIALIZING";case kcf::ApplicationState::RUNNING:return "RUNNING";case kcf::ApplicationState::ERROR:return "ERROR";case kcf::ApplicationState::RESETTING:return "RESETTING";case kcf::ApplicationState::SHUTTING_DOWN:return "SHUTTING_DOWN";default:return StoppedState(s, 0);}}
 std::string Display(const DataSnapshot& s){if(s.fields.size()==1&&s.fields[0].array_values.empty())return s.fields[0].value;std::string text;
     for(const auto& f:s.fields){if(!text.empty())text+="; ";text+=f.name+"=";if(f.array_values.empty())text+=f.value;else{ text+="[";for(std::size_t i=0;i<f.array_values.size();++i){if(i)text+=",";text+=f.array_values[i];}text+="]";}}return text;}
 template<class T> struct Record {T model;kcf::RuntimeInfo runtime;};
