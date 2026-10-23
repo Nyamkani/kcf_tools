@@ -346,7 +346,7 @@ void MainWindow::Refresh() {
         connection_status_->setText("Connection: Error"); break;
     }
     if (result != 0 || connection != BackendConnectionState::CONNECTED) {
-        // Discard stale data when refresh fails or the backend is unavailable.
+        // Discard stale Local data; Network discovery has an independent lifetime.
         applications_.clear();
         elements_.clear();
         topics_.clear();
@@ -359,7 +359,10 @@ void MainWindow::Refresh() {
         ShowElement();
         ShowTopic();
         ShowParameter();
-        UpdateServices();
+        services_.clear();
+        {const QSignalBlocker blocker(service_list_);service_list_->clear();}
+        ShowService();
+        // Even without Local runtimes, apply the latest independent NetworkSnapshot.
         UpdateExplorer();
         discovery_refreshed_=true;
         statusBar()->showMessage("Last refresh: " +
