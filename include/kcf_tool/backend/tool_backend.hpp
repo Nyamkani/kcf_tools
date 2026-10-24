@@ -1,5 +1,6 @@
 #pragma once
 #include "kcf_tool/model/network_info.hpp"
+#include "kcf_tool/backend/local_gateway.hpp"
 #include "kcf_tool/model/application_info.hpp"
 #include "kcf_tool/model/element_info.hpp"
 #include "kcf_tool/model/topic_info.hpp"
@@ -22,6 +23,9 @@ using TopicDataCallback = std::function<void(const DataSnapshot&)>;
 
 class ToolBackend {
 public:
+    // Local IPC observation is independent of Direct Discovery/control.
+    virtual int ConfigureLocalGateway(const std::string&,bool) {return -ENOTSUP;}
+    virtual LocalGatewaySnapshot GetLocalGatewaySnapshot() {return {};}
     virtual int ConfigureNetwork(const NetworkOptions&,bool) {return -ENOTSUP;}
     virtual NetworkOptions GetNetworkOptions() const {return {};}
     virtual std::future<RemoteReply> SubmitRemote(const RemoteCommand&) {return RemoteUnavailable();}

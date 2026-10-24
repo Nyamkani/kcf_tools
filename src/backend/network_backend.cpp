@@ -152,7 +152,10 @@ public:
     }
     std::future<RemoteReply> Submit(const RemoteCommand& c){
 #ifdef KCF_TOOL_HAS_REMOTE_CONTROL
-        std::lock_guard<std::mutex> lock(mutex_);auto executor=remote_.lock();return executor?executor->Submit(c):RemoteUnavailable(-ENOTCONN);
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(!snapshot_.explicit_control_identity && c.operation!=RemoteOperation::Subscribe &&
+           c.operation!=RemoteOperation::Unsubscribe && c.operation!=RemoteOperation::Poll)return RemoteUnavailable(-EACCES);
+        auto executor=remote_.lock();return executor?executor->Submit(c):RemoteUnavailable(-ENOTCONN);
 #else
         (void)c;return RemoteUnavailable();
 #endif
@@ -172,10 +175,10 @@ private:
                 bool nonzero=false;
                 for(unsigned i=0;i<16;++i){auto digit=[](char c)->int{if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;if(c>='A'&&c<='F')return c-'A'+10;return -1;};int a=digit(options.host_id[2*i]),b=digit(options.host_id[2*i+1]);if(a<0||b<0){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Invalid Host ID";return;}config.host.bytes[i]=(a<<4)|b;nonzero|=config.host.bytes[i]!=0;}
                 if(!nonzero){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Host ID must not be zero";return;}
+            }
 #ifdef KCF_TOOL_HAS_REMOTE_CONTROL
                 config.profile.capabilities=net::CapabilityBit(net::Capability::DISCOVERY)|net::CapabilityBit(net::Capability::REMOTE_TOPIC_RECEIVER)|net::CapabilityBit(net::Capability::TARGET_ENDPOINT);
 #endif
-            }
             config.interface_address=options.interface_address;config.port=options.port;
             const int result=discovery.Start(config);
             if(result){std::lock_guard<std::mutex> lock(mutex_);snapshot_.status="Discovery start failed: "+std::to_string(result);return;}
@@ -185,7 +188,7 @@ private:
 #endif
 #ifdef KCF_TOOL_HAS_REMOTE_CONTROL
             std::shared_ptr<RemoteExecutor> executor;
-            if(!options.host_id.empty()){executor=std::make_shared<RemoteExecutor>(discovery,config);std::lock_guard<std::mutex> lock(mutex_);remote_=executor;}
+            {executor=std::make_shared<RemoteExecutor>(discovery,config);std::lock_guard<std::mutex> lock(mutex_);remote_=executor;}
 #endif
             for(;;){
                 const auto tick=std::chrono::steady_clock::now()+std::chrono::milliseconds(100);
@@ -218,8 +221,10 @@ private:
                 }
 #endif
                 auto next=Convert(peers,discovery.GetLastError());next.observer_host=Key(config.host);
+                next.explicit_control_identity=!options.host_id.empty();
 #ifdef KCF_TOOL_HAS_REMOTE_CONTROL
-                next.remote_control_available=executor&&!executor->StartError();
+                next.network_client_available=executor&&!executor->StartError();
+                next.remote_control_available=next.network_client_available&&next.explicit_control_identity;
                 if(executor&&executor->StartError())next.status+=" | Remote client start failed: "+std::to_string(executor->StartError());
 #endif
 #ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS

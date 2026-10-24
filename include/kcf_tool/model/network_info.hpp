@@ -64,6 +64,8 @@ struct RemoteHost {
 };
 struct NetworkSnapshot {
     std::string observer_host;bool remote_control_available{false};
+    bool network_client_available{false}; // Topic executor ready, not a server authorization grant
+    bool explicit_control_identity{false}; // current configuration, never inferred from saved UI settings
     std::string status{"Network discovery disabled / unavailable"};
     std::string route_status{"External Gateway route/statistics observation API unavailable; no inferred network edges"};
     std::vector<RemoteHost> hosts;

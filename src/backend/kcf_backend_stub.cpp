@@ -9,6 +9,8 @@ std::future<RemoteReply> KcfBackend::SubmitRemote(const RemoteCommand&){return R
 int KcfBackend::StartNetwork(const NetworkOptions&) { return -ENOTSUP; }
 void KcfBackend::StopNetwork() {}
 NetworkSnapshot KcfBackend::GetNetworkSnapshot() { return {}; }
+int KcfBackend::ConfigureLocalGateway(const std::string&,bool){return -ENOTSUP;}
+LocalGatewaySnapshot KcfBackend::GetLocalGatewaySnapshot(){return {};}
 KcfBackend::KcfBackend()=default;
 KcfBackend::~KcfBackend()=default;
 BackendConnectionState KcfBackend::GetConnectionState() const {

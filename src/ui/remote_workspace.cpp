@@ -64,6 +64,7 @@ struct RemoteWorkspace::Impl {
     std::future<RemoteReply> polling;std::uint64_t poll_epoch{0};QListWidget* activity_list;QLabel* activity_status;std::unique_ptr<Form> feedback,result;QPushButton* cancel;std::map<std::uint64_t,RemoteActivity> activities;
     struct TopicRate {std::chrono::steady_clock::time_point at{};std::uint64_t packets{0},route{0};double hz{-1};};
     std::map<std::uint64_t,TopicRate> rates;
+    QLabel* local_status;QTreeWidget* local_peers;std::uint64_t local_observed{0};
     int ticks{0};
     Impl(RemoteWorkspace& w,ToolBackend& b,QTabWidget& t,GraphWidget& g):owner(w),backend(b),tabs(t),graph(g){
         auto* layout=new QVBoxLayout(&owner);auto* row=new QHBoxLayout;layout->addLayout(row);
@@ -72,11 +73,13 @@ struct RemoteWorkspace::Impl {
         auto opts=backend.GetNetworkOptions();int index=interfaces->findData(Text(opts.interface_address));if(index>=0)interfaces->setCurrentIndex(index);else interfaces->setEditText(Text(opts.interface_address));
         port=new QSpinBox;port->setRange(1,65535);port->setValue(opts.port);port->setObjectName("networkPort");
         host_id=new QLineEdit;host_id->setObjectName("networkHostId");host_id->setPlaceholderText("32 hex Host ID; blank = temporary observer");
-        QSettings settings("KCF","Tools");host_id->setText(opts.host_id.empty()?settings.value("network/controlHostId").toString():Text(opts.host_id));
+        host_id->setText(Text(opts.host_id)); // Show the active configuration, not a previous saved identity.
         enabled=new QCheckBox("Network enabled");enabled->setChecked(!backend.GetNetworkSnapshot().observer_host.empty()||backend.GetNetworkSnapshot().status.find("disabled")==std::string::npos);
         apply=new QPushButton("Apply network settings");apply->setObjectName("networkApply");
         row->addWidget(enabled);row->addWidget(interfaces,2);row->addWidget(port);row->addWidget(host_id,2);row->addWidget(apply);
         host_id->setToolTip("Use a unique persistent Host ID granted by the Gateway: descriptor_query_clients, parameter_get_clients, parameter_set_clients, service_call_clients, action_goal_clients, action_cancel_clients. IP is not authorization. Trusted LAN only. Stop/disconnect does not stop hardware or send Action Cancel.");
+        local_status=Label();local_status->setObjectName("localGatewayStatus");layout->addWidget(local_status);
+        local_peers=new QTreeWidget;local_peers->setObjectName("localGatewayPeers");local_peers->setHeaderLabels({"Local Gateway IPC peers (read-only)","Identity / Session / Revision"});local_peers->setMaximumHeight(140);layout->addWidget(local_peers);
         auto* selection=new QHBoxLayout;layout->addLayout(selection);hosts=new QComboBox;hosts->setObjectName("remoteHostSelector");hosts->addItem("Local","");selection->addWidget(hosts,2);status=Label();status->setObjectName("networkStatus");selection->addWidget(status,3);
         timeout=new QSpinBox;timeout->setRange(1,60000);timeout->setValue(1000);timeout->setSuffix(" ms request");tracking=new QSpinBox;tracking->setRange(1,3600000);tracking->setValue(60000);tracking->setSuffix(" ms Action tracking");selection->addWidget(timeout);selection->addWidget(tracking);
         auto* actions=new QWidget;auto* local_actions=new QVBoxLayout(actions);local_actions->addWidget(new QLabel("Remote Actions: select a Network Host above. Local Action control is not provided."));tabs.addTab(actions,"Actions");
@@ -158,16 +161,28 @@ struct RemoteWorkspace::Impl {
         static const char* states[]={"IDLE","ACCEPTED","RUNNING","SUCCEEDED","FAILED","CANCELED"};
         activity_status->setText(QString("Goal ACK=%1 | Cancel ACK=%2 | Terminal=%3 | State=%4 | %5\nexecution_unknown=%6 cancel_unknown=%7 | %8")
             .arg(a.accepted).arg(a.cancel_accepted).arg(a.terminal).arg(a.state>=0&&a.state<6?states[a.state]:"UNKNOWN").arg(Error(a.error)).arg(a.execution_unknown).arg(a.cancel_unknown).arg(a.communication_lost?"LOST/detached: hardware state unknown":"Current session"));
-        feedback->Render(a.communication_lost?DataSnapshot{}:a.feedback,false);result->Render(a.communication_lost?DataSnapshot{}:a.result,false);cancel->setEnabled(!a.terminal&&!a.communication_lost&&!configuration.valid()&&!closing&&!panels[7].busy);
+        feedback->Render(a.communication_lost?DataSnapshot{}:a.feedback,false);result->Render(a.communication_lost?DataSnapshot{}:a.result,false);cancel->setEnabled(snapshot.remote_control_available&&!a.terminal&&!a.communication_lost&&!configuration.valid()&&!closing&&!panels[7].busy);
+    }
+    void LocalTick(){
+        const auto s=backend.GetLocalGatewaySnapshot();
+        const char* connection=s.connection==LocalGatewayConnection::READY?"CONNECTED":s.connection==LocalGatewayConnection::ERROR?"ERROR":s.connection==LocalGatewayConnection::CONNECTING?"CONNECTING":"DISABLED";
+        local_status->setText(QString("Local Gateway IPC: %1 | %2 | error=%3").arg(connection).arg(Text(s.socket_path)).arg(s.error)+
+            (s.connection==LocalGatewayConnection::READY?QString("\n%1 | Host %2 | Boot %3 | Session %4 | %5 / %6 | Network error %7").arg(Text(s.state)).arg(Text(s.host)).arg(Text(s.boot)).arg(s.session).arg(Text(s.interface_name)).arg(Text(s.ipv4)).arg(s.last_network_error):QString(" | no current snapshot")));
+        if(s.observed_at_unix_ms==local_observed)return;local_observed=s.observed_at_unix_ms;local_peers->clear();
+        if(s.connection!=LocalGatewayConnection::READY)return;
+        for(const auto& p:s.peers){auto* row=new QTreeWidgetItem(local_peers,{Text(p.address+" | "+p.state),Text(p.host)+QString(" | session %1 | revision %2").arg(p.session).arg(p.metadata_revision)});
+            for(const auto& e:p.endpoints)new QTreeWidgetItem(row,{Text(e.name),Text(e.identity.host_id)+QString(" / %1 / %2 / %3").arg(e.identity.pid).arg(e.identity.start_ticks).arg(e.identity.registration_id)});
+        }
     }
     void Tick(){
+        LocalTick();
         using namespace std::chrono_literals;
         if(configuration.valid()&&configuration.wait_for(0ms)==std::future_status::ready){int code=configuration.get();configuration_status="Network settings: "+Error(code);status->setText(configuration_status);apply->setEnabled(true);if(closing){if(configuration_shutdown){closed=true;owner.window()->close();return;}Configure(true);return;}}
         snapshot=backend.GetNetworkSnapshot();
         if(activity_list->currentItem())ShowActivity();
         if(++ticks%5==0){QSignalBlocker block(hosts);hosts->clear();hosts->addItem("Local","");for(const auto& h:snapshot.hosts)hosts->addItem(Text(h.label+" | "+h.address+" | "+h.id+" | "+h.state+" | "+h.compatibility)+QString(" | session %1").arg(h.session),Text(h.id));int at=hosts->findData(host_selected);if(at<0&&!host_selected.isEmpty()){hosts->addItem("Unavailable Host "+host_selected,host_selected);at=hosts->count()-1;}hosts->setCurrentIndex(std::max(0,at));Populate();}
         const auto online=std::count_if(snapshot.hosts.begin(),snapshot.hosts.end(),[](const RemoteHost& h){return h.state=="ONLINE";});
-        status->setText(Text(snapshot.status)+QString(" | Remote Hosts ONLINE %1 / %2").arg(online).arg(snapshot.hosts.size())+"\nTool Host: "+Text(snapshot.observer_host)+(snapshot.remote_control_available?" | Control/Topic ready":" | read-only / unavailable")+" | snapshot "+QDateTime::currentDateTime().toString(Qt::ISODate));
+        status->setText(Text(snapshot.status)+QString(" | Remote Hosts ONLINE %1 / %2").arg(online).arg(snapshot.hosts.size())+"\nTool Host: "+Text(snapshot.observer_host)+(snapshot.remote_control_available?" | explicit Control Client":snapshot.network_client_available?" | temporary Topic Observer":" | Discovery-only / unavailable")+" | snapshot "+QDateTime::currentDateTime().toString(Qt::ISODate));
         QString freshness;for(const auto& h:snapshot.hosts)if(Text(h.id)==host_selected){
             const auto observed=h.diagnostics.observed_at_unix_ms;const auto now=QDateTime::currentMSecsSinceEpoch();
             freshness=QString(" | Session %1 | announce age %2 ms | Diagnostics observation %3 / age %4 ms%5").arg(h.session).arg(h.age_ms).arg(observed).arg(observed?now-qint64(observed):-1).arg(!observed||now<qint64(observed)||now-qint64(observed)>10000?" (Unavailable/stale)":"");}
@@ -198,8 +213,8 @@ struct RemoteWorkspace::Impl {
             for(auto it=activities.begin();activities.size()>128&&it!=activities.end();)if(it->second.terminal||it->second.communication_lost)it=activities.erase(it);else ++it;
             QSignalBlocker block(activity_list);auto selected=activity_list->currentItem()?activity_list->currentItem()->data(Qt::UserRole).toULongLong():0;activity_list->clear();for(auto& a:activities){auto* item=new QListWidgetItem(Text(a.second.endpoint.name+" | "+a.second.endpoint.identity.host_id)+QString(" | Goal handle %1").arg(a.first),activity_list);item->setData(Qt::UserRole,qulonglong(a.first));if(a.first==selected)activity_list->setCurrentItem(item);}ShowActivity();
         }
-        if(ticks%5==0&&!polling.valid()&&snapshot.remote_control_available&&!configuration.valid()&&!closing){RemoteCommand c;c.operation=RemoteOperation::Poll;poll_epoch=epoch;polling=backend.SubmitRemote(c);}
-        for(auto& entry:panels){auto& p=entry.second;bool live=Current(p.selected)&&p.selected.scope=="REMOTE"&&snapshot.remote_control_available&&!p.busy&&!configuration.valid()&&!closing;
+        if(ticks%5==0&&!polling.valid()&&snapshot.network_client_available&&!configuration.valid()&&!closing){RemoteCommand c;c.operation=RemoteOperation::Poll;poll_epoch=epoch;polling=backend.SubmitRemote(c);}
+        for(auto& entry:panels){auto& p=entry.second;bool live=Current(p.selected)&&p.selected.scope=="REMOTE"&&(entry.first==2?snapshot.network_client_available:snapshot.remote_control_available)&&!p.busy&&!configuration.valid()&&!closing;
             bool role=p.selected.role==(entry.first==2?"PUBLISHER":entry.first==3?"OWNER":"SERVER");for(auto* button:p.buttons)button->setEnabled(live&&role);
             if(entry.first==2){p.buttons[0]->setEnabled(live&&role&&!p.subscription);p.buttons[1]->setEnabled(p.subscription&&!p.busy&&!configuration.valid());}
             if(entry.first!=2&&p.buttons.size()>1)p.buttons[1]->setEnabled(live&&role&&!p.input->data.fields.empty());

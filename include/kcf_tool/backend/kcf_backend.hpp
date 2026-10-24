@@ -8,6 +8,8 @@ class NetworkObserver;
 class KcfBackend final : public ToolBackend {
 public:
     KcfBackend();
+    int ConfigureLocalGateway(const std::string&,bool) override;
+    LocalGatewaySnapshot GetLocalGatewaySnapshot() override;
     int ConfigureNetwork(const NetworkOptions&,bool) override;
     NetworkOptions GetNetworkOptions() const override;
     std::future<RemoteReply> SubmitRemote(const RemoteCommand&) override;
@@ -43,6 +45,8 @@ public:
     int CallService(const EndpointIdentity&, const DataSnapshot&, DataSnapshot&,
                     std::uint32_t timeout_ms=200, std::uint32_t retry_count=2) override;
 private:
+    mutable std::mutex local_gateway_mutex_;
+    std::shared_ptr<LocalGatewayClient> local_gateway_;
     mutable std::mutex network_mutex_;
     NetworkOptions network_options_;
     std::shared_ptr<NetworkObserver> network_;

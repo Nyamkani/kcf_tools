@@ -15,12 +15,14 @@ int main(int argc, char* argv[]) {
     parser.addOption({"network-interface", "Discovery IPv4 interface", "address", "0.0.0.0"});
     parser.addOption({"network-port", "Discovery UDP port", "port", "37651"});
     parser.addOption({"network-host-id", "Persistent Tool Host ID (32 hex digits); must match Gateway allowlists", "id"});
+    parser.addOption({"gateway-socket", "Read-only host-local Gateway socket", "path", "/run/kcf/gateway.sock"});
     parser.process(app);
     const auto selected = parser.value("backend");
     if (selected != "mock" && selected != "kcf") parser.showHelp(1);
     std::unique_ptr<kcf_tool::ToolBackend> backend;
     if (selected == "kcf") {
         auto real=std::make_unique<kcf_tool::KcfBackend>();
+        real->ConfigureLocalGateway(parser.value("gateway-socket").toStdString(),true);
         if(!parser.isSet("no-network")) {
             bool ok=false;const auto port=parser.value("network-port").toUInt(&ok);
             if(!ok || !port || port>65535)parser.showHelp(1);
