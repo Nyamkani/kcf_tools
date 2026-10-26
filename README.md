@@ -38,6 +38,32 @@ Service Call/Response 및 Action 성공·Cancel을 확인했습니다.
 [Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph)를 참고하십시오.
 v0.14의 실제 빌드·검증 범위와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)를 따릅니다.
 
+## NET56 개발 연동 — 버전 0.14.0 유지
+
+현재 Framework **5.5.0 개발 작업 트리(NET56-4C/5B1 포함)**와 연동하면 Host ID 없이
+`kcf_tool --backend kcf`로 임시 Topic Observer를 시작할 수 있습니다. 공개 REMOTE Publisher를
+선택하여 Descriptor 조회·Subscribe/Unsubscribe/Poll을 수행합니다. 자동 재구독은 없습니다.
+임시 Observer의 Capability는 DISCOVERY / REMOTE_TOPIC_RECEIVER / TARGET_ENDPOINT이며
+Parameter Get/Set, Service, Action 제어 버튼은 활성화하지 않습니다. 명시적 `--network-host-id`
+사용 시 기존 제어 기능과 서버의 독립 Allowlist 검사는 유지합니다. Gateway 영구 ID를 복사하지 마세요.
+
+같은 UID의 Local Gateway는 기본 `/run/kcf/gateway.sock`에서 조회합니다.
+`--gateway-socket PATH`로 개발 경로를 지정하며 상태/Peer Snapshot은 Direct Discovery와 별도로 표시합니다.
+Local IPC 실패가 Direct Observer를 종료시키지 않으며, IPC 연결은 Payload/Control 권한이 아닙니다.
+
+```sh
+./build/kcf_tool --backend kcf
+# 개발 Gateway가 지정한 실제 socket 경로 사용
+./build/kcf_tool --backend kcf --gateway-socket /path/to/private-runtime/gateway.sock
+```
+
+Gateway는 노출 Prefix 정책을 활성화해야 합니다. `--network-interface`는 **IPv4 주소**이며
+Framework Gateway의 `--interface` NIC 이름 옵션과 다릅니다. Discovery 기본 UDP 포트는 37651입니다.
+구형 Framework에서는 기능 탐지 결과에 따라 Discovery-only/지원 불가 상태를 표시합니다.
+
+구현·검증·미검증의 구분 및 기존 이력은 [Network Observation](docs/NETWORK_OBSERVATION.md)을 참고하세요.
+NET56 개발 구현은 Framework v5.6.0 또는 새로운 Tools 릴리스 배포 완료를 뜻하지 않습니다.
+
 ## Framework v5.5 호환성 검증 — 2026-10-22
 
 Tools 버전은 **v0.14 / 0.14.0**을 유지합니다. Framework dev
@@ -138,6 +164,17 @@ Git tag 및 GitHub Release 생성 여부는 이번 작업에서 확인하지 않
 
 ## 빌드 및 실행
 
+KCF 연결 빌드(`KCF_SOURCE_DIR` 설정)는 **nlohmann_json >= 3.2**의 CMake 패키지가 필요합니다
+(`nlohmann_json::nlohmann_json`, Debian/Ubuntu 패키지 이름 `nlohmann-json3-dev`).
+Local Gateway IPC JSON 검증에 사용하며 GUI OFF인 KCF Backend 빌드에도 필요합니다.
+Framework 없는 Mock/stub 구성에는 이 조건부 의존성을 요구하지 않습니다. 이 문서 작업은 패키지를 설치하지 않습니다.
+
+```sh
+cmake -S . -B build-kcf -DKCF_SOURCE_DIR=../kss_control_framework -DKCF_TOOL_BUILD_TESTS=ON
+cmake --build build-kcf -j
+./build-kcf/kcf_tool --backend kcf
+```
+
 Mock 구성은 KCF 없이 빌드할 수 있습니다.
 
 ```sh
@@ -147,11 +184,11 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-현재 v0.14 Remote 기능 빌드는 **KCF v5.4의 Remote Control/Topic Client, TypeDescriptor Query 및 Diagnostics 공개 API가 포함된 소스**를
+현재 NET56 전체 기능은 **NET56-4C/5B1을 포함한 Framework 5.5.0 개발 소스**를
 `KCF_SOURCE_DIR`로 참조합니다. 소스를 복사하지 않으며 HEAD만으로 미커밋 변경을
 식별할 수 없으므로 `git status`와 적용된 API도 확인합니다. 새 빌드 디렉터리를 사용합니다.
 초기 Diagnostics-only 빌드의 F-ND5B 기준은 위 Historical 기록으로 보존합니다.
-v0.14의 Framework 검증 기준은 dev `5ae507a8b866015360686463c1ce03905c4e39af` (v5.4.0)이며,
+Historical: v0.14 최초 Framework 검증 기준은 dev `5ae507a8b866015360686463c1ce03905c4e39af` (v5.4.0)이며,
 실행 결과는 [릴리스 노트](docs/V0_14_RELEASE_NOTES.md)에 기록합니다.
 
 Historical: v0.12의 공개 Network 빌드 기준은 KCF v5.2

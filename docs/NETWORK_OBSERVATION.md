@@ -1,10 +1,88 @@
 # Network Remote Discovery / Graph 관측
 
-현재 Tool은 **v0.13**, Framework 기준은 **v5.3.0 dev 미커밋 working tree (F-ND5B 완료)**다.
-공개 SHA/tag가 이 working tree를 대표한다고 쓰지 않는다. 기존 v0.12 Discovery 기능은 유지한다.
-검증 출처와 실패 이력은 [v0.13 릴리스 노트](V0_13_RELEASE_NOTES.md)에 기록한다.
+현재 Tools 버전은 **0.14.0**, NET56 연동 대상은 **Framework 5.5.0 개발 작업 트리**다.
+v5.6.0 정식 릴리스·배포를 선언하지 않는다. 이번 정합성 작업에서는 빌드·시험을 재실행하지 않았다.
 
-## v0.13 Network Diagnostics 계약
+## 현재 NET56 구현
+
+- Host ID 미설정은 임시 고유 Observer Identity다. 현재 설정의 `explicit_control_identity`와
+  `network_client_available`을 구분하며 저장된 QSettings 값만으로 제어 권한 표시를 켜지 않는다.
+- NET56 Core에서 `RemoteTopicClient`와 기존 공유 Discovery를 사용한다. 임시 Observer도
+  DISCOVERY / REMOTE_TOPIC_RECEIVER / TARGET_ENDPOINT로 Topic 구독 가능하다.
+  Topic Exposure가 허용한 REMOTE Publisher의 VALUE Descriptor는 사전 Host Allowlist 없이 조회한다.
+  LOCAL Topic/Subscriber 및 Parameter/Service/Action Descriptor에는 이 자동 권한을 적용하지 않는다.
+- 임시 Observer의 Parameter Get/Set·Service·Action은 UI와 Backend에서 허용하지 않는다.
+  명시적 Host ID의 기존 Remote Control은 유지하되 서버 Allowlist가 최종 검증한다.
+  Host ID·Allowlist는 암호학적 인증이 아니며 신뢰 LAN 전제는 변하지 않는다.
+- 새 Session/Endpoint에서 기존 Subscription을 자동 재사용하지 않는다. 사용자 재선택이 필요하다.
+  Action 자동 reattach·변경 명령 자동 retry·Payload forwarding은 지원하지 않는다.
+
+### Host-local Gateway IPC (NET56-5B2)
+
+`--gateway-socket` 기본 `/run/kcf/gateway.sock`; `--backend kcf`에서 별도 Worker로 조회한다.
+Core `gateway/LOCAL_IPC.md` 계약을 따른다: Unix stream, 16-byte big-endian header,
+magic `0x4b43464c`, version 1, operation 1 GET_STATUS / 2 GET_PEERS, 길이는 header 제외 body 길이,
+최대 1 MiB. JSON의 64-bit 값은 decimal string이며 native C++ layout을 전송하지 않는다.
+버전·필수 필드·크기·부분 송수신·EOF를 검증하고 유한 timeout/Stop으로 자원을 회수한다.
+같은 UID가 필요하며 Gateway는 socket mode 0600과 SO_PEERCRED를 검사한다.
+
+Local Gateway Host/Boot/Session, NIC/IP, WAITING_NETWORK/REBINDING/RUNNING/ERROR 및
+Peer Endpoint/Metadata Revision을 읽기 전용 별도 Snapshot으로 표시한다. IPC 연결 ERROR와
+Gateway Network ERROR는 별개다. 실패한 조회를 최신 정상 데이터로 남기지 않는다.
+Direct Observer 결과와 무조건 합치지 않으며 Local IPC 실패가 Direct Discovery를 종료하지 않는다.
+Local IPC는 Payload, Parameter/Service/Action 또는 Diagnostics relay가 아니다. 기존 Diagnostics는
+Direct Observer 경로를 사용하며 대상 Gateway의 명시적 Diagnostics opt-in이 여전히 필요하다.
+
+```sh
+./build/kcf_tool --backend kcf
+./build/kcf_tool --backend kcf --gateway-socket /path/to/private-runtime/gateway.sock
+# NIC override가 필요하면 인터페이스 이름이 아닌 실제 로컬 IPv4를 사용
+./build/kcf_tool --backend kcf --network-interface 192.168.1.10 --network-port 37651
+```
+
+`--network-host-id`는 32자리 hex 명시적 Control Identity를 유지한다. 영구 Gateway Host ID를 공유하지 않는다.
+Tools는 Gateway 서비스 자동 설치·시작 프로그램이 아니다. Framework의 자동 NIC 재바인딩과
+Tools의 자동 NIC failover/Topic 재구독을 혼동하지 않는다(후자는 미구현).
+
+### 구현과 검증의 경계 (2026-10-25 대조)
+
+- **구현 완료:** Temporary Observer와 Local IPC Client/Backend/UI 및 관련 테스트 소스가 존재한다.
+  KCF 연결 빌드는 nlohmann_json >= 3.2 CMake 패키지를 요구한다. GUI OFF에도 적용되며
+  Framework 없는 Mock/stub는 이 조건부 의존성 없이 유지한다.
+- **실제 기록 확인:** 기존 Virtual LAN·Mock/Qt 검증 수치와 실패 이력은 아래 Historical 절의
+  당시 버전 기준이다. 보존된 `/tmp/kcf-tools-name/Testing/Temporary/LastTest.log`는
+  Explorer identity, Local Graph, Network Graph 3개 Qt 시험 PASS이며 NET56 전체 검증을 대체하지 않는다.
+- **STAB-3 당시 증거 미확보:** NET56-5A/5B2 전용 테스트 실행 로그는 이번 문서 대조에서 확보하지 못했다.
+  소스 존재를 실행 PASS로 바꾸지 않는다. 이번 작업에서 새로운 Loopback/Virtual LAN/Mock/Qt PASS는 추가하지 않았다.
+- **미검증:** NET56 물리 LAN, 실제 systemd 운영, hard real-time 100Hz, 실제 로봇 Fail-safe.
+  Framework scheduler/Fresh-start/CommandFreshnessMonitor가 있어도 Tools가 장치 안전을 보장하지 않는다.
+
+Framework Known Issue: Service Endpoint 선택 단계의 간헐적 `-ENOENT`는 원인 미확정이다.
+과거 Integration/ControlTraffic 실패 및 재실행 이력은 유지한다. Type Registry EAGAIN은
+bounded 복구(50ms 간격 최대 64회) 후 소진 시 중단하며 당시 Service/Action 전용 Registry 복구는 범위 밖이었다.
+
+후속 STAB-6B-3/4에서는 Service Registry 생성 EAGAIN과 Service Request/Response Type 등록 복구를 구현·검증했다.
+Service 내부 토큰과 관측 registration_id를 유지하며 Stop/Runtime 종료 시 보류 작업을 취소하고 Worker를 회수한다.
+Supervisor 초기 Registry 생성도 bounded 재시도로 복구한다. Type/Service 복구는 최대 64회 제한을 유지하며,
+영구 오류 및 소진 후에는 자동 무한 재시도를 하지 않는다. Action 전용 Registry 복구는 여전히 범위 밖이다.
+
+STAB-6B-5의 Graph 준비 조건은 Runtime 이름만이 아니라 RUNNING 및 실제 Subscriber Endpoint를 확인하도록 보완했다.
+통제 재현에서 namespace PID 1의 assertion/abort가 SIGSEGV로 나타나는 경로를 backtrace로 확인했지만,
+과거 Network Service 선택 `-ENOENT`의 최초 Registry 누락 원인은 미확정으로 유지한다.
+STAB-6B-6의 Real Smoke 6.4Hz(Topic 재생성 후) / 24.9Hz(depth4 최초 Echo)도 원인 미확정이다.
+진단 추가 후 각 5회 및 CTest 1~10번은 PASS했으나 과거 실패를 해결로 소급하지 않는다.
+실제 NET56 LAN·systemd 운영·RT 성능·로봇 Fail-safe는 여전히 미검증이다.
+근거는 로컬 `/tmp/kcf-stab6b4`, `/tmp/kcf-stab6b5`, `/tmp/kcf-stab6b6` 기록이며 배포 자료가 아니다.
+
+## Historical — v0.13 / Framework v5.3 Diagnostics 단계
+
+이하 미지원 설명·SHA·검증 기록은 해당 개발 당시 사실이며 현재 NET56 기능 목록이 아니다.
+당시 Framework 기준은 v5.3.0 dev 미커밋 working tree (F-ND5B 완료)였고,
+검증 출처는 [v0.13 릴리스 노트](V0_13_RELEASE_NOTES.md)에 보존한다.
+
+<a id="v013-network-diagnostics-계약"></a>
+
+## Historical v0.13 Network Diagnostics 계약
 
 - 기존 Observer worker와 실행 중인 `PeerDiscovery`를 재사용한다. 별도 Discovery,
   Gateway, TopicDataPlane, listener를 만들지 않는다. Framework 공개 API만 사용하며

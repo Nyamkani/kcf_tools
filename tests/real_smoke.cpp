@@ -16,12 +16,18 @@
 #include <csignal>
 #include <cassert>
 #include <iostream>
+#include <chrono>
+#include <deque>
+#include <QProcessEnvironment>
 
 int main(int argc,char** argv) {
     QApplication app(argc,argv); assert(argc==2||argc==3);
     const QString prefix = "/kt4_qt_"+QString::number(QCoreApplication::applicationPid());
     QStringList fixture_args{"--element",prefix};if(argc==3)fixture_args<<"--depth4";
-    QProcess fixture; fixture.start(argv[1],fixture_args); assert(fixture.waitForStarted());
+    QProcess fixture;
+    auto environment=QProcessEnvironment::systemEnvironment();environment.insert("KCF_REAL_SMOKE_TIMING","1");fixture.setProcessEnvironment(environment);
+    QObject::connect(&fixture,&QProcess::readyReadStandardError,[&]{std::cerr<<fixture.readAllStandardError().constData();});
+    fixture.start(argv[1],fixture_args); assert(fixture.waitForStarted());
     kcf_tool::MainWindow window(std::make_unique<kcf_tool::KcfBackend>(),"KCF"); window.show();
     auto* refresh=window.findChild<QPushButton*>("refreshButton");
     auto* connection=window.findChild<QLabel*>("connectionStatus");
@@ -32,6 +38,21 @@ int main(int argc,char** argv) {
     auto* fields=window.findChild<QTableWidget*>("echoFields");
     auto* status=window.findChild<QLabel*>("echoStatus");
     auto* frequency=window.findChild<QLabel*>("topicFrequency");
+    const auto mono=[] {return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();};
+    struct Observation {qint64 ns;qulonglong sequence;};std::deque<Observation> history;
+    unsigned echo_cycle=0;
+    const auto observe=[&]{
+        if(!timer->isActive()||!status->text().startsWith("Echo running"))return;
+        const auto ns=mono();const auto sequence=window.findChild<QLabel*>("topicSequence")->text().toULongLong();
+        if(!history.empty()&&sequence<history.back().sequence)history.clear();
+        history.push_back({ns,sequence});while(history.size()>16||ns-history.front().ns>1000000000)history.pop_front();
+        const auto& first=history.front();const double elapsed=(ns-first.ns)/1e9;
+        std::cout<<"[echo-observation] cycle="<<echo_cycle<<" mono_ns="<<ns<<" first_ns="<<first.ns<<" elapsed_s="<<elapsed<<" first_sequence="<<first.sequence<<" last_sequence="<<sequence<<" delta="<<(sequence-first.sequence)<<" reconstructed_hz="<<(elapsed?(sequence-first.sequence)/elapsed:0)<<" displayed="<<frequency->text().toStdString()<<std::endl;
+    };
+    // Connections run after MainWindow's existing slots; observation timestamps
+    // bracket the public UI result, not access to private rate-history state.
+    QObject::connect(start,&QPushButton::clicked,[&]{++echo_cycle;history.clear();observe();});
+    QObject::connect(timer,&QTimer::timeout,observe);
     const auto wait = [&](auto condition) {
         QElapsedTimer elapsed; elapsed.start();
         while(!condition()) { assert(elapsed.elapsed()<10000); app.processEvents(); QThread::msleep(5); }
@@ -61,13 +82,20 @@ int main(int argc,char** argv) {
     wait([&]{return fields->rowCount()==7;});
     assert(window.findChild<QLabel*>("topicSequence")->text()!="N/A");
     const auto initial_sequence=window.findChild<QLabel*>("topicSequence")->text().toULongLong();
-    const auto measured = [&] {
+    const auto measured = [&](const char* phase) {
         wait([&]{return frequency->text().endsWith(" Hz");});
         bool ok=false;const double hz=frequency->text().chopped(3).toDouble(&ok);
-        std::cout << "Observed Publish rate: " << hz << " Hz (expected 60..140)" << std::endl;
+        std::cout << "[rate-check] phase="<<phase<<" cycle="<<echo_cycle<<" mono_ns="<<mono()<<" fixture_pid="<<fixture.processId()<<" hz="<<hz<<" expected=60..140"<<std::endl;
+        if(!ok||hz<60||hz>140){
+            // Diagnose subsequent windows but retain the ORIGINAL failed verdict.
+            QElapsedTimer diagnostic;diagnostic.start();while(diagnostic.elapsed()<1200){app.processEvents();QThread::msleep(5);}
+            fixture.terminate();const bool exited=fixture.waitForFinished(10000);
+            std::cerr<<fixture.readAllStandardError().constData();
+            std::cerr<<"[failed-rate-fixture-stop] exited="<<exited<<" exit="<<fixture.exitCode()<<"\n";
+        }
         assert(ok && hz>=60 && hz<=140);
     };
-    measured();
+    measured("initial-echo");
     assert(window.findChild<QLabel*>("topicSequence")->text().toULongLong()>initial_sequence);
     assert(fields->item(0,2)->text()=="7" && fields->item(1,2)->text()=="1.25");
     assert(fields->item(6,0)->text()=="values[3]" && fields->item(6,2)->text()=="8");
@@ -89,11 +117,11 @@ int main(int argc,char** argv) {
     assert(frequency->text()=="Measuring...");
     wait([&]{return fields->rowCount()==7;});
     assert(fields->item(1,2)->text()=="9.5");
-    measured();
+    measured("topic-recreated-echo");
     stop->click(); assert(!timer->isActive());
     assert(frequency->text()=="N/A");
     start->click(); assert(frequency->text()=="Measuring...");
-    measured();
+    measured("echo-stop-start");
     refresh->click(); assert(!timer->isActive() && frequency->text()=="N/A");
     // Duplicate name, different endpoint: selecting subscriber must not silently
     // resolve by name to the publisher. Refresh must preserve that exact choice.
@@ -104,7 +132,7 @@ int main(int argc,char** argv) {
     assert(select("/legacy","PUBLISHER"));
     assert(!start->isEnabled() && status->text()=="Type descriptor unavailable");
     assert(select("/topic","PUBLISHER")); start->click(); assert(timer->isActive());
-    measured();
+    measured("topic-reselected-echo");
     fixture.terminate(); assert(fixture.waitForFinished(10000)&&fixture.exitCode()==0);
     wait([&]{return !timer->isActive();});
     assert(status->text().startsWith("Echo error:"));

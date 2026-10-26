@@ -231,3 +231,11 @@ if(KCF_TOOL_BUILD_TESTS AND KCF_SOURCE_DIR AND KCF_TOOL_BUILD_GUI)
     add_test(NAME kcf_tool_local_gateway_ui COMMAND kcf_tool_local_gateway_ui)
     set_tests_properties(kcf_tool_local_gateway_ui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" RUN_SERIAL TRUE TIMEOUT 30)
 endif()
+
+if(KCF_TOOL_BUILD_TESTS AND KCF_TOOL_BUILD_GUI AND KCF_SOURCE_DIR)
+    add_executable(kcf_tool_element_name_graph tests/element_name_graph.cpp)
+    target_link_libraries(kcf_tool_element_name_graph PRIVATE kcf_tool_backend kcf_tool_graph kcf_core)
+    target_include_directories(kcf_tool_element_name_graph PRIVATE "${KCF_SOURCE_DIR}/examples/network/src")
+    target_compile_options(kcf_tool_element_name_graph PRIVATE -UNDEBUG)
+    # Manual integration test: pass kcf_bringup and kcf_element_name_test paths.
+endif()

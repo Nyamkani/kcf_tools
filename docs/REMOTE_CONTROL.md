@@ -27,9 +27,12 @@ IP는 Tool 장비의 실제 IPv4로 변경합니다. Host ID는 장비마다 고
 상단에서 IPv4 interface, Discovery port, Host ID를 지정하고 **Apply network settings**를
 누릅니다. Host ID는 Qt settings에 저장되어 다음 GUI 실행의 입력값으로 제공됩니다.
 CLI 없이 저장값만 존재하는 경우 자동으로 제어를 활성화하지 않으며 Apply가 필요합니다.
-Host ID가 비어 있으면 임시 identity의 관측 전용 Observer입니다.
+Host ID가 비어 있으면 임시 identity의 Observer입니다. NET56-4C/5A 개발 연동에서는
+공개 REMOTE Publisher의 Descriptor 조회와 Topic 구독도 가능하며 Parameter/Service/Action 제어는 비활성입니다.
+[현재 Observer 및 Local Gateway IPC 계약](NETWORK_OBSERVATION.md#현재-net56-구현)을 참고하세요.
 
-Gateway에는 같은 Tool Host ID를 필요한 권한별로 설정해야 합니다:
+명시적 Remote Control에는 Gateway에 같은 Tool Host ID를 필요한 권한별로 설정해야 합니다
+(Topic Observer가 공개 Publisher VALUE Descriptor를 조회하는 NET56 경로는 별도 Allowlist 불필요):
 `descriptor_query_clients`, `parameter_get_clients`, `parameter_set_clients`,
 `service_call_clients`, `action_goal_clients`, `action_cancel_clients`.
 IP로 권한을 추정하지 않습니다. Gateway의 remote scope/type 등록과 Topic export 설정도

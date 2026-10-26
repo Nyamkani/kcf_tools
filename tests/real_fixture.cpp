@@ -7,6 +7,10 @@
 #include "kcf/service/service_server.hpp"
 #include "bringup/bringup.hpp"
 #include <atomic>
+#include <array>
+#include <cstdlib>
+#include <ctime>
+#include <sched.h>
 #include <cassert>
 #include <iostream>
 #include <mutex>
@@ -60,6 +64,11 @@ struct Element:kcf::ProcessElement {
     kcf::Parameter<Config> owner,client,remote_client,previous;kcf::Publisher<Legacy> legacy;
     std::mutex config_access;kcf::ServiceServer service;std::atomic<unsigned> watches{0};unsigned calls=0;
     Element(std::string p,std::string r):prefix(std::move(p)),remote(std::move(r)){}
+    struct Timing {std::uint64_t start,done,cpu,generation,commit;int error,processor;};
+    std::array<Timing,4096> timings{};std::size_t timing_count=0;
+    std::uint64_t generation=0,commits=0;
+    const bool trace=std::getenv("KCF_REAL_SMOKE_TIMING")!=nullptr;
+    static std::uint64_t Ns(clockid_t clock){timespec t{};clock_gettime(clock,&t);return std::uint64_t(t.tv_sec)*1000000000+t.tv_nsec;}
     int Setup() override {
         int r=pub.Create(prefix+"/topic",topic_depth);if(r)return r;
         if(topic_depth==4){
@@ -80,6 +89,7 @@ struct Element:kcf::ProcessElement {
         return service.Start();
     }
     int Loop() override {
+        const auto begin=trace?Ns(CLOCK_MONOTONIC):0;
         if(parameter_recreate){
             std::lock_guard<std::mutex> lock(config_access);assert(previous.Open(prefix+"/config")==0);assert(client.Close()==0);
             assert(owner.Close()==0 && owner.Unlink()==0 && owner.Create(prefix+"/config",{88,true},[&](const Config&){++watches;})==0);
@@ -89,8 +99,13 @@ struct Element:kcf::ProcessElement {
         if(parameter_update){Config value{};assert(client.Get(value)==0);value.gain=66;value.enabled=!value.enabled;value.values[1]+=10;
             assert(client.Set(value)==0);parameter_update=0;std::cout<<"PARAMETER_UPDATED"<<std::endl;}
         if(hold_sample && !echo_changed)return 0;
-        if(echo_recreate){assert(pub.Close()==0 && pub.Unlink()==0 && pub.Create(prefix+"/topic",topic_depth)==0);echo_changed=1;echo_recreate=0;}if(echo_unlink){pub.Unlink();echo_unlink=0;}int r=pub.Publish(echo_changed ? Sample{8,9.5f,12,{10,20,30,40}} : Sample{7,1.25f,-3,{2,4,6,8}});if(r)return r;return legacy.Publish({9});}
-    void Shutdown() override {service.Stop();previous.Close();remote_client.Close();remote_sub.Close();client.Close();owner.Close();owner.Unlink();sub.Close();pub.Close();pub.Unlink();legacy.Close();legacy.Unlink();}
+        if(echo_recreate){assert(pub.Close()==0 && pub.Unlink()==0 && pub.Create(prefix+"/topic",topic_depth)==0);echo_changed=1;echo_recreate=0;++generation;commits=0;}if(echo_unlink){pub.Unlink();echo_unlink=0;}int r=pub.Publish(echo_changed ? Sample{8,9.5f,12,{10,20,30,40}} : Sample{7,1.25f,-3,{2,4,6,8}});if(!r)++commits;
+        if(trace&&timing_count<timings.size())timings[timing_count++]={begin,Ns(CLOCK_MONOTONIC),Ns(CLOCK_THREAD_CPUTIME_ID),generation,commits,r,sched_getcpu()};
+        if(r)return r;return legacy.Publish({9});}
+    void Shutdown() override {
+        if(trace){std::cerr<<"[fixture-timing] pid="<<getpid()<<" depth="<<topic_depth<<" samples="<<timing_count<<" capacity="<<timings.size()<<"\n";
+            for(std::size_t i=0;i<timing_count;++i){const auto& t=timings[i];std::cerr<<"[fixture-loop] start_ns="<<t.start<<" done_ns="<<t.done<<" thread_cpu_ns="<<t.cpu<<" generation="<<t.generation<<" successful_loop_publishes="<<t.commit<<" error="<<t.error<<" cpu="<<t.processor<<"\n";}}
+        service.Stop();previous.Close();remote_client.Close();remote_sub.Close();client.Close();owner.Close();owner.Unlink();sub.Close();pub.Close();pub.Unlink();legacy.Close();legacy.Unlink();}
 };
 int main(int argc,char** argv){signal(SIGUSR1,ChangeEcho);signal(SIGUSR2,UnlinkEcho);signal(SIGWINCH,RecreateEcho);signal(SIGTTIN,RecreateParameter);signal(SIGTTOU,UpdateParameter);assert(prctl(PR_SET_PDEATHSIG,SIGTERM)==0);if(argc<3)return 2;std::string mode=argv[1],prefix=argv[2],remote=argc>3?argv[3]:"";
     if(mode=="--application"){
