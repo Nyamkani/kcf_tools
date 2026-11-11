@@ -3,6 +3,8 @@
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,
 기본 `MockBackend`와 선택적인 실제 `KcfBackend`를 제공합니다.
 
+KCF 5.6.0 실제 Backend를 포함한 DEB 생성·검증은 [Debian 패키징 가이드](docs/DEBIAN_PACKAGING.md)를 참고하십시오.
+
 ## v0.14 기준
 
 현재 버전은 **v0.14** (CMake **0.14.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.

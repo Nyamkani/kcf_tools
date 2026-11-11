@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(KCF_TOOL_BUILD_GUI "Build Qt Widgets application" ON)
 option(KCF_TOOL_BUILD_TESTS "Build backend and widget smoke checks" OFF)
+option(KCF_TOOL_ENABLE_PACKAGING "Enable real-backend, static-Core DEB packaging" OFF)
 set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (optional; v0.14 Remote Control/Topic and Diagnostics target KCF v5.4 public APIs; older API configurations retain Local/Discovery support; absent KCF uses Mock/stub)")
 
 set(KCF_TOOL_NETWORK_DIAGNOSTICS OFF)
@@ -238,4 +239,13 @@ if(KCF_TOOL_BUILD_TESTS AND KCF_TOOL_BUILD_GUI AND KCF_SOURCE_DIR)
     target_include_directories(kcf_tool_element_name_graph PRIVATE "${KCF_SOURCE_DIR}/examples/network/src")
     target_compile_options(kcf_tool_element_name_graph PRIVATE -UNDEBUG)
     # Manual integration test: pass kcf_bringup and kcf_element_name_test paths.
+endif()
+
+# Packaging is opt-in: existing Mock and source-linked development builds stay available.
+include(GNUInstallDirs)
+if(KCF_TOOL_BUILD_GUI)
+    install(TARGETS kcf_tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+if(KCF_TOOL_ENABLE_PACKAGING)
+    include(cmake/Packaging.cmake)
 endif()
