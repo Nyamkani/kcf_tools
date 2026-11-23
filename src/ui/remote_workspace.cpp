@@ -22,6 +22,7 @@
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QSettings>
+#include <QScrollBar>
 #include <QDateTime>
 #include <QRegularExpression>
 #include <algorithm>
@@ -56,7 +57,7 @@ struct RemoteWorkspace::Impl {
     RemoteWorkspace& owner;ToolBackend& backend;QTabWidget& tabs;GraphWidget& graph;
     QComboBox *hosts,*interfaces;QSpinBox *port,*timeout,*tracking;QLineEdit* host_id;QCheckBox* enabled;QLabel* status;QPushButton* apply;
     QTimer timer;std::future<int> configuration;bool closing{false},closed{false},configuration_shutdown{false};std::uint64_t epoch{0};
-    NetworkSnapshot snapshot;QString host_selected,configuration_status;std::map<int,QStackedWidget*> stacks;
+    NetworkSnapshot snapshot;QString host_selected,configuration_status;QStringList tree_signature;std::map<int,QStackedWidget*> stacks;
     QTreeWidget *applications,*elements;std::map<int,std::vector<RemoteEndpoint>> choices;
     struct Panel {QWidget* page;QListWidget* list;QLabel* metadata;QLabel* status;std::unique_ptr<Form> input,output;std::vector<QPushButton*> buttons;RemoteEndpoint selected;std::uint64_t revision{0},subscription{0};bool busy{false};};
     std::map<int,Panel> panels;
@@ -86,7 +87,7 @@ struct RemoteWorkspace::Impl {
         for(int i:{0,1,2,3,5,7}){
             auto* local=tabs.widget(i);auto title=tabs.tabText(i);tabs.removeTab(i);auto* stack=new QStackedWidget;stack->addWidget(local);auto* remote=new QWidget;auto* scroll=new QScrollArea;scroll->setWidgetResizable(true);scroll->setWidget(remote);stack->addWidget(scroll);tabs.insertTab(i,stack,title);stacks[i]=stack;
             auto* box=new QVBoxLayout(remote);
-            if(i<2){auto* tree=new QTreeWidget;tree->setHeaderLabels({i==0?"Application / Runtime / Endpoint":"Runtime / Endpoint","Identity / Role"});box->addWidget(tree);if(i==0)applications=tree;else elements=tree;
+            if(i<2){auto* tree=new QTreeWidget;tree->setHeaderLabels({i==0?"Application / Runtime / Endpoint":"Runtime / Endpoint","Identity / Role"});box->addWidget(tree);tree->setObjectName(i==0?"remoteApplications":"remoteElements");if(i==0)applications=tree;else elements=tree;
                 QObject::connect(tree,&QTreeWidget::itemActivated,&owner,[this](QTreeWidgetItem* item,int){const auto id=item->data(0,Qt::UserRole).toString();if(!id.isEmpty())Navigate(id);});continue;}
             Panel p;p.page=remote;p.list=new QListWidget;p.list->setObjectName(QString("remoteEndpoints%1").arg(i));box->addWidget(p.list);p.metadata=Label();box->addWidget(p.metadata);
             if(i!=2)box->addWidget(new QLabel(i==3?"Parameter fields (Get before editing)":i==5?"Service Request":"Action Goal"));
@@ -117,22 +118,49 @@ struct RemoteWorkspace::Impl {
     }
     bool Dirty()const {for(const auto& p:panels)if(p.second.input->dirty)return true;return false;}
     void Clear(Panel& p){++p.revision;p.selected={};p.input->Render({},false);p.output->Render({},false);p.metadata->clear();p.status->setText("Select a current Remote endpoint");}
-    bool Current(const RemoteEndpoint& e)const {for(const auto& h:snapshot.hosts)if(h.id==e.identity.host_id&&h.boot_id==e.identity.boot_id&&h.session==e.session&&h.state=="ONLINE"&&h.compatibility=="COMPATIBLE"&&h.metadata_ready)for(const auto& v:h.endpoints)if(v.id==e.id&&v.session==e.session)return true;return false;}
+    bool Current(const RemoteEndpoint& e,const NetworkSnapshot& source)const {for(const auto& h:source.hosts)if(h.id==e.identity.host_id&&h.boot_id==e.identity.boot_id&&h.session==e.session&&h.state=="ONLINE"&&h.compatibility=="COMPATIBLE"&&h.metadata_ready)for(const auto& v:h.endpoints)if(v.id==e.id&&v.session==e.session)return true;return false;}
+    bool Current(const RemoteEndpoint& e)const {return Current(e,snapshot);}
+    bool DisplayStale(const RemoteHost& h)const {return h.state=="ONLINE"&&h.compatibility=="COMPATIBLE"&&!h.metadata_ready&&h.last_complete_snapshot.valid&&h.last_complete_snapshot.stale;}
+    bool Retained(const RemoteEndpoint& e)const {
+        if(Current(e))return true;
+        for(const auto& h:snapshot.hosts)if(h.id==e.identity.host_id&&h.boot_id==e.identity.boot_id&&h.session==e.session&&DisplayStale(h))
+            for(const auto& v:h.last_complete_snapshot.endpoints)if(Key(v)==Key(e))return true;
+        return false;
+    }
     void Populate(){
         const RemoteHost* h=nullptr;for(const auto& v:snapshot.hosts)if(Text(v.id)==host_selected)h=&v;
+        const bool stale=h&&DisplayStale(*h);
+        const std::vector<RemoteEndpoint> empty;
+        const auto& source=h&&h->state=="ONLINE"&&h->compatibility=="COMPATIBLE"?(h->metadata_ready?h->endpoints:stale?h->last_complete_snapshot.endpoints:empty):empty;
+        std::vector<RemoteEndpoint> shown;
+        if(h)for(const auto& e:source)if(e.identity.host_id==h->id&&e.identity.boot_id==h->boot_id&&e.session==h->session)shown.push_back(e);
+        QStringList signature;
+        for(const auto& e:shown)signature<<Key(e)<<Text(e.application_id)<<Text(e.application)<<Text(e.runtime_id)<<Text(e.element)<<Text(e.name)<<Text(e.kind)<<Text(e.role);
+        applications->setHeaderLabel(stale?"Application / Runtime / Endpoint — UPDATING / STALE":"Application / Runtime / Endpoint");
+        elements->setHeaderLabel(stale?"Runtime / Endpoint — UPDATING / STALE":"Runtime / Endpoint");
+        if(signature!=tree_signature){tree_signature=signature;
         applications->clear();elements->clear();std::map<std::string,QTreeWidgetItem*> apps,runtimes,elems;
-        if(h)for(const auto& e:h->endpoints){
+        for(const auto& e:shown){
             auto*& app=apps[e.application_id];if(!app){app=new QTreeWidgetItem(applications,{Text(e.application),Text(e.application_id)});}
             auto*& runtime=runtimes[e.runtime_id];if(!runtime)runtime=new QTreeWidgetItem(app,{Text(e.element),Text(e.runtime_id)});
             auto* item=new QTreeWidgetItem(runtime,{Text(e.name),Text(e.kind+" / "+e.role)});item->setData(0,Qt::UserRole,Text(e.id));
             auto*& element=elems[e.runtime_id];if(!element){element=new QTreeWidgetItem(elements,{Text(e.element),Text(e.runtime_id)});element->setData(0,Qt::UserRole+1,Text(e.runtime_id));}
             auto* endpoint=new QTreeWidgetItem(element,{Text(e.name),Text(e.kind+" / "+e.role)});endpoint->setData(0,Qt::UserRole,Text(e.id));
         }
-        for(auto& entry:panels){int i=entry.first;auto& p=entry.second;auto key=Key(p.selected);QSignalBlocker block(p.list);p.list->clear();choices[i].clear();int selected=-1;
-            if(h)for(const auto& e:h->endpoints)if(e.kind==(i==2?"T":i==3?"P":i==5?"S":"A")){
-                if(Key(e)==key)selected=choices[i].size();choices[i].push_back(e);p.list->addItem(Text(e.name+" ["+e.role+"] "+e.id));}
-            p.list->setCurrentRow(selected);
-            if(!p.selected.id.empty()&&(!Current(p.selected)||selected<0)){Clear(p);p.status->setText("Selection invalidated: LOST / generation changed. Execution may continue on hardware; reselect explicitly.");}
+        }
+        for(auto& entry:panels){int i=entry.first;auto& p=entry.second;auto key=Key(p.selected);QSignalBlocker block(p.list);choices[i].clear();int selected=-1;
+            QStringList labels;
+            for(const auto& e:shown)if(e.kind==(i==2?"T":i==3?"P":i==5?"S":"A")){
+                if(Key(e)==key)selected=choices[i].size();choices[i].push_back(e);labels<<(Text(e.name+" ["+e.role+"] "+e.id)+(stale?" [UPDATING / STALE]":""));}
+            // Keep item objects and scroll position when only readiness changes.
+            const int scroll=p.list->verticalScrollBar()->value();
+            while(p.list->count()>labels.size())delete p.list->takeItem(p.list->count()-1);
+            for(int row=0;row<labels.size();++row){if(row==p.list->count())p.list->addItem(labels[row]);else if(p.list->item(row)->text()!=labels[row])p.list->item(row)->setText(labels[row]);p.list->item(row)->setData(Qt::UserRole,Key(choices[i][row]));}
+            if(p.list->currentRow()!=selected)p.list->setCurrentRow(selected);
+            p.list->verticalScrollBar()->setValue(scroll);
+            p.list->setToolTip(stale?"UPDATING / STALE — display only; new requests disabled":"Current metadata");
+            if(selected>=0){p.selected=choices[i][selected];p.metadata->setText((stale?QString("UPDATING / STALE — display only\n"):QString("READY\n"))+Text(p.selected.id)+QString("\nSession %1 | ").arg(p.selected.session)+Text(p.selected.scope+"\n"+p.selected.type));}
+            if(!p.selected.id.empty()&&(!Retained(p.selected)||selected<0)){Clear(p);p.status->setText("Selection invalidated: LOST / generation changed. Execution may continue on hardware; reselect explicitly.");}
         }
     }
     void Select(int i,int row){auto& p=panels[i];if(row<0||row>=int(choices[i].size()))return;
@@ -148,7 +176,14 @@ struct RemoteWorkspace::Impl {
         if(op==RemoteOperation::Subscribe&&p.subscription){p.status->setText("Unsubscribe the existing subscription first.");return;}
         Submit(page,c);
     }
-    void Submit(int page,const RemoteCommand& c){auto& p=panels[page];p.busy=true;p.status->setText("Request in progress; no automatic retry");pending.push_back({backend.SubmitRemote(c),c,page,epoch,p.revision});}
+    void Submit(int page,const RemoteCommand& c){auto& p=panels[page];
+        if(p.busy||closing||configuration.valid())return;
+        const auto fresh=backend.GetNetworkSnapshot();
+        const bool cleanup=c.operation==RemoteOperation::Unsubscribe;
+        const bool topic=c.operation==RemoteOperation::Subscribe;
+        const bool role=c.endpoint.role==(page==2?"PUBLISHER":page==3?"OWNER":"SERVER");
+        if(cleanup?(!c.handle||fresh.observer_host!=snapshot.observer_host):(fresh.observer_host!=snapshot.observer_host||!Current(c.endpoint,fresh)||c.endpoint.scope!="REMOTE"||!role||!(topic?fresh.network_client_available:fresh.remote_control_available))){p.status->setText("Request blocked: endpoint is not current / authorized (UPDATING, STALE or unavailable)");return;}
+        p.busy=true;p.status->setText("Request in progress; no automatic retry");pending.push_back({backend.SubmitRemote(c),c,page,epoch,p.revision});}
     void Configure(bool shutdown){if(configuration.valid())return;
         if(!shutdown&&Dirty()&&QMessageBox::question(&owner,"Discard Remote edits","Changing Network settings cancels requests and detaches Actions without stopping hardware. Continue?")!=QMessageBox::Yes)return;
         NetworkOptions opts;const auto text=interfaces->currentText();opts.interface_address=(text==interfaces->itemText(interfaces->currentIndex())?interfaces->currentData().toString():text).toStdString();opts.port=port->value();opts.host_id=host_id->text().trimmed().toLower().toStdString();
@@ -178,9 +213,12 @@ struct RemoteWorkspace::Impl {
         LocalTick();
         using namespace std::chrono_literals;
         if(configuration.valid()&&configuration.wait_for(0ms)==std::future_status::ready){int code=configuration.get();configuration_status="Network settings: "+Error(code);status->setText(configuration_status);apply->setEnabled(true);if(closing){if(configuration_shutdown){closed=true;owner.window()->close();return;}Configure(true);return;}}
-        snapshot=backend.GetNetworkSnapshot();
+        auto next=backend.GetNetworkSnapshot();
+        if(next.observer_host!=snapshot.observer_host){++epoch;for(auto& entry:panels){Clear(entry.second);entry.second.subscription=0;}rates.clear();tree_signature.clear();applications->clear();elements->clear();}
+        snapshot=std::move(next);
+        Populate();
         if(activity_list->currentItem())ShowActivity();
-        if(++ticks%5==0){QSignalBlocker block(hosts);hosts->clear();hosts->addItem("Local","");for(const auto& h:snapshot.hosts)hosts->addItem(Text(h.label+" | "+h.address+" | "+h.id+" | "+h.state+" | "+h.compatibility)+QString(" | session %1").arg(h.session),Text(h.id));int at=hosts->findData(host_selected);if(at<0&&!host_selected.isEmpty()){hosts->addItem("Unavailable Host "+host_selected,host_selected);at=hosts->count()-1;}hosts->setCurrentIndex(std::max(0,at));Populate();}
+        if(++ticks%5==0){QSignalBlocker block(hosts);hosts->clear();hosts->addItem("Local","");for(const auto& h:snapshot.hosts)hosts->addItem(Text(h.label+" | "+h.address+" | "+h.id+" | "+h.state+" | "+h.compatibility)+QString(" | session %1").arg(h.session),Text(h.id));int at=hosts->findData(host_selected);if(at<0&&!host_selected.isEmpty()){hosts->addItem("Unavailable Host "+host_selected,host_selected);at=hosts->count()-1;}hosts->setCurrentIndex(std::max(0,at));}
         const auto online=std::count_if(snapshot.hosts.begin(),snapshot.hosts.end(),[](const RemoteHost& h){return h.state=="ONLINE";});
         status->setText(Text(snapshot.status)+QString(" | Remote Hosts ONLINE %1 / %2").arg(online).arg(snapshot.hosts.size())+"\nTool Host: "+Text(snapshot.observer_host)+(snapshot.remote_control_available?" | explicit Control Client":snapshot.network_client_available?" | temporary Topic Observer":" | Discovery-only / unavailable")+" | snapshot "+QDateTime::currentDateTime().toString(Qt::ISODate));
         QString freshness;for(const auto& h:snapshot.hosts)if(Text(h.id)==host_selected){
@@ -189,7 +227,10 @@ struct RemoteWorkspace::Impl {
         status->setText(configuration_status+" "+status->text().replace(" | snapshot "," | Snapshot read ")+freshness);
         for(auto it=pending.begin();it!=pending.end();){if(it->future.wait_for(0ms)!=std::future_status::ready){++it;continue;}auto r=it->future.get();auto& p=panels[it->page];p.busy=false;
             if(it->epoch==epoch&&it->command.operation==RemoteOperation::Goal&&r.handle){RemoteActivity a;a.handle=r.handle;a.endpoint=it->command.endpoint;a.accepted=r.response_received&&!r.error;a.execution_unknown=r.execution_unknown;activities[r.handle]=a;}
-            if(it->epoch==epoch&&it->revision!=p.revision&&it->command.operation==RemoteOperation::Subscribe&&r.handle){RemoteCommand cleanup;cleanup.operation=RemoteOperation::Unsubscribe;cleanup.handle=r.handle;backend.SubmitRemote(cleanup);}
+            if(it->epoch==epoch&&it->command.operation==RemoteOperation::Subscribe&&r.handle){
+                if(!r.error&&it->revision==p.revision&&Key(p.selected)==Key(it->command.endpoint)&&Retained(it->command.endpoint))p.subscription=r.handle;
+                else {RemoteCommand cleanup;cleanup.operation=RemoteOperation::Unsubscribe;cleanup.handle=r.handle;backend.SubmitRemote(cleanup);}
+            }
             if(it->epoch==epoch&&it->revision==p.revision&&(it->command.operation==RemoteOperation::Unsubscribe||Current(it->command.endpoint))){p.status->setText(Summary(r,it->command.operation));if(!r.error){auto op=it->command.operation;
                 if(op==RemoteOperation::Prepare||op==RemoteOperation::Get)p.input->Render(r.value,true);
                 if(op==RemoteOperation::Set){p.input->dirty=false;if(!r.readback_error){p.input->Render(r.value,true);p.output->Render(r.value,false);}else {p.input->Render({},false);p.output->Render({},false);}}

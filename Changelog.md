@@ -3,6 +3,21 @@
 KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 개별 작업일을 소급 지정하지 않고 기존 단계별 이력은 진행 순서대로 보존합니다. 최신 버전 요약은 상단에 구분합니다.
 
+## v0.15.0 — Communication Graph / Metadata Snapshot / Core 5.6.1
+
+- CMake 버전 0.15.0. 실제 Backend는 Core >=5.6.1 및 `PeerInfo.last_complete_snapshot`과 Remote Client 필수 API를 Configure에서 검사합니다. Core 5.6.0은 거부하며 Core 없는 Mock/stub는 유지합니다.
+- Debian 패키징의 고정 Core 요구와 설명은 5.6.1입니다. Ubuntu 24.04 amd64 / Release / 배포판 Qt 6.4.2에서 Core 5.6.1 추출 SDK로 Configure/Build/CPack 및 추출 실행 PASS입니다. 실제 설치 검증과 구분합니다.
+- Ownership을 기본으로 유지하고 Communication 모드를 추가했습니다. Local Element 간 Publisher → Subscriber/Topic 라벨은 Metadata 등록 관계이며 Remote는 양쪽 Diagnostics의 Verified ACTIVE Route만 연결합니다.
+- 마지막 정상 Snapshot의 valid/stale/uint64 revision/endpoints를 현재 Metadata와 분리했습니다. Remote Workspace는 STALE 목록·선택을 표시 전용으로 유지하며 신규 제어를 차단하고 기존 Subscribe Handle과 명시적 Unsubscribe를 유지합니다.
+- Revision 완료 시 동일 Identity 선택을 유지하고 삭제·registration/Boot/Session 변경·LOST에는 무효화합니다. 정상 빈 목록을 과거 목록으로 대체하지 않습니다.
+- Historical — 앞선 Release 준비: Core 5.6.1 Debug 빌드 및 관련 회귀 7/7 PASS (57.17초), Mock/stub 빌드 및 전체 6/6 PASS (3.84초), Core 5.6.0 Configure 거부 PASS. 전체 실제 Backend 회귀 결과로 확대하지 않습니다.
+- 최종 Debug: Core v5.6.1 / Qt 6.9.3, CTest **22/22 PASS (92.44초)**, 별도 Mock/stub **6/6 PASS (4.08초)**. Virtual LAN/Qt offscreen E2E에서 READY/STALE/INVALID, Subscribe Handle 유지, Verified Route 및 Graph를 검증했습니다. 최초 sandbox netlink 환경 준비 실패 후 격리 실행 PASS를 보존합니다.
+- 생성 DEB: `kcf-tools_0.15.0-1+ubuntu24.04_amd64.deb`, **784,686 bytes**. SHA256: `1b76bd756972996b3f8901349c883c70fb399f88c584697390a1879311e9bc7b`.
+- 최초 SDK staging의 imported target 범위 오류로 빌드 실패 후 `/tmp` 어댑터를 수정하여 PASS했습니다. 제품 소스 변경 없이 추출 SDK 정적 링크와 배포판 Qt 사용을 확인했습니다. [패키징 재현·검증](docs/DEBIAN_PACKAGING.md)을 참고하세요.
+- 실제 DEB 설치·업그레이드, 이번 Release 데스크톱 GUI·물리 LAN·ARM64 및 Release 전체 CTest는 미검증입니다. 이번 문서 작업은 재실행 결과가 아닙니다.
+- Local Communication GUI 수동 시험은 사용자 확인 PASS입니다. 다중 관계 GUI 및 실물 Remote Graph는 미검증입니다. 기존 Virtual LAN의 STALE/구독 유지 및 Route 결과·초기 환경 실패는 [Network 검증 기록](docs/NETWORK_OBSERVATION.md#v015-snapshot-validation)에 구분합니다.
+- Workspace / Manifest / Launch Designer는 Tools #3 후속 과제입니다. 새 Tag/Release는 생성하지 않았습니다. 아래 v0.14 이하 이력은 당시 기준으로 보존합니다.
+
 ## v0.14 — Generic Remote Control / Multi-Host UI
 
 - Tool 버전을 v0.14 / CMake 0.14.0으로 정합화하고 Framework v5.4를 연동 기준으로 문서화했습니다.

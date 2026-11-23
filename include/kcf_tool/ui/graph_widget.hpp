@@ -16,6 +16,7 @@ public:
                      const std::vector<TopicInfo>&,const std::vector<ParameterInfo>&,
                      const std::vector<ServiceInfo>&, const NetworkSnapshot& = {});
     const GraphModel& Model() const { return model_; }
+    const CommunicationGraphModel& CommunicationModel() const { return communication_model_; }
     std::function<void()> refresh;
     std::function<void(RuntimeIdentity)> open_element;
     std::function<void(EndpointIdentity)> open_topic;
@@ -30,6 +31,8 @@ private:
     std::vector<ServiceInfo> services_;
     NetworkSnapshot network_;
     GraphModel model_;
+    CommunicationGraphModel communication_model_;
+    QComboBox* mode_;
     QCheckBox *actions_toggle_, *local_toggle_, *remote_toggle_;
     QComboBox* host_filter_;
     QPlainTextEdit* detail_;

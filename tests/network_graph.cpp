@@ -100,12 +100,19 @@ NetworkSnapshot VerifiedSnapshot(){
     auto rx=tx;rx.id="other";rx.boot_id="boot2";rx.session=2;
     auto& e=rx.endpoints[0];e.id="other:boot2:200:234:8";e.runtime_id="other:boot2:200:234";e.application_id="other-app";e.role="SUBSCRIBER";
     rx.diagnostics.gateway_host=rx.id;rx.diagnostics.gateway_boot=rx.boot_id;rx.diagnostics.gateway_session=rx.session;rx.diagnostics.routes[0].sending=false;
+    tx.endpoints[0].identity=tx.diagnostics.routes[0].source;tx.endpoints[0].session=tx.session;
+    rx.endpoints[0].identity=rx.diagnostics.routes[0].destination;rx.endpoints[0].session=rx.session;
     s.hosts.push_back(rx);return s;
 }
 std::vector<GraphEdge> VerifiedEdges(const NetworkSnapshot& s,const GraphOptions& options={}){
     std::vector<GraphEdge> result;auto m=AddRemoteGraph({},s,options);
     std::set<std::string> nodes;for(const auto& n:m.nodes)nodes.insert(n.id);
-    for(const auto& e:m.edges){assert(nodes.count(e.from)&&nodes.count(e.to));if(e.network_route)result.push_back(e);}return result;
+    for(const auto& e:m.edges){assert(nodes.count(e.from)&&nodes.count(e.to));if(e.network_route)result.push_back(e);}
+    const auto communication=AddRemoteCommunicationGraph({},s,options);
+    assert(communication.network_edges.size()==result.size());
+    std::set<std::string> runtimes;for(const auto& node:communication.nodes)runtimes.insert(node.id);
+    for(const auto& e:communication.network_edges){assert(e.route.network_route&&runtimes.count(e.route.from)&&runtimes.count(e.route.to));assert(e.publisher.session&&e.subscriber.session);}
+    return result;
 }
 void VerifiedRoutes(){
     const auto base=VerifiedSnapshot();auto edges=VerifiedEdges(base);assert(edges.size()==1);
@@ -144,12 +151,54 @@ void VerifiedRoutes(){
         assert(VerifiedEdges(base,o).empty());
     }
     GraphOptions remote;remote.local=false;assert(VerifiedEdges(base,remote).size()==1);
+    // Same topic fan-out to a second runtime requires a second matched route.
+    s=base;auto recipient=s.hosts[1].endpoints[0];recipient.identity.pid=201;
+    recipient.runtime_id="other:boot2:201:234";recipient.id=recipient.runtime_id+":8";
+    s.hosts[1].endpoints.push_back(recipient);
+    assert(VerifiedEdges(s).size()==1); // matching name alone adds nothing
+    auto send=s.hosts[0].diagnostics.routes[0];send.destination=recipient.identity;send.route_id=16;
+    s.hosts[0].diagnostics.routes.push_back(send);send.sending=false;s.hosts[1].diagnostics.routes.push_back(send);
+    assert(VerifiedEdges(s).size()==2);
+    auto publisher=s.hosts[0].endpoints[0];publisher.name=recipient.name="/second-topic";
+    publisher.identity.registration_id=9;publisher.id=publisher.runtime_id+":9";
+    recipient.identity.registration_id=10;recipient.id=recipient.runtime_id+":10";
+    s.hosts[0].endpoints.push_back(publisher);s.hosts[1].endpoints.push_back(recipient);
+    send.source=publisher.identity;send.destination=recipient.identity;send.route_id=17;send.name=publisher.name;
+    send.sending=true;s.hosts[0].diagnostics.routes.push_back(send);send.sending=false;s.hosts[1].diagnostics.routes.push_back(send);
+    assert(VerifiedEdges(s).size()==3);
+    const auto multi=s;
+    s=base;++s.hosts[0].endpoints[0].session;assert(AddRemoteCommunicationGraph({},s).network_edges.empty());
+    s=base;++s.hosts[1].endpoints[0].identity.registration_id;assert(AddRemoteCommunicationGraph({},s).network_edges.empty());
+    s=base;s.hosts[1].endpoints[0].runtime_id="unrelated-runtime";assert(AddRemoteCommunicationGraph({},s).network_edges.empty());
+    assert(AddRemoteCommunicationGraph({},Snapshot()).network_edges.empty()); // Service/Action server metadata creates no calls.
+
+
     GraphWidget graph;graph.SetSnapshot({}, {}, {}, {}, {}, base);graph.show();QApplication::processEvents();
     auto* view=graph.findChild<QGraphicsView*>("graphView");int routes=0;
     for(auto* item:view->scene()->items())if(auto* path=dynamic_cast<QGraphicsPathItem*>(item)){
         if(path->toolTip().contains("route_id=15")){++routes;assert(path->pen().style()==Qt::SolidLine&&path->pen().color()==QColor("#007f9e"));}
         else assert(path->pen().style()==Qt::DashLine);
     }assert(routes==1);
+    auto* mode=graph.findChild<QComboBox*>("graphMode");mode->setCurrentIndex(1);
+    assert(graph.CommunicationModel().network_edges.size()==1);
+    int paths=0,labels=0,arrows=0;
+    for(auto* item:view->scene()->items()){
+        if(item->data(2).toString()=="communication-verified"){
+            auto* path=dynamic_cast<QGraphicsPathItem*>(item);assert(path&&path->pen().style()==Qt::SolidLine&&path->pen().color()==QColor("#007f9e"));
+            assert(item->data(3).toString()=="remote-runtime:host0:boot:100:123"&&item->data(4).toString()=="remote-runtime:other:boot2:200:234");
+            assert(item->toolTip().contains("route_id=15")&&item->toolTip().contains("does not verify Application"));++paths;
+        }
+        if(item->data(2).toString()=="communication-verified-topic")++labels;
+        if(item->data(2).toString()=="communication-verified-arrow")++arrows;
+    }assert(paths==1&&labels==1&&arrows==1);
+    graph.SetSnapshot({}, {}, {}, {}, {}, multi);
+    assert(graph.CommunicationModel().network_edges.size()==3);
+    std::set<qreal> lanes;
+    for(auto* item:view->scene()->items())if(item->data(2).toString()=="communication-verified")lanes.insert(dynamic_cast<QGraphicsPathItem*>(item)->path().elementAt(1).x);
+    assert(lanes.size()==3);
+    auto expired=base;expired.hosts[0].diagnostics.observed_at_unix_ms-=10001;graph.SetSnapshot({}, {}, {}, {}, {}, expired);
+    assert(graph.CommunicationModel().network_edges.empty());graph.SetSnapshot({}, {}, {}, {}, {}, base);
+    mode->setCurrentIndex(0);assert(graph.CommunicationModel().network_edges.empty());
     view->scale(1.2,1.2);const auto zoom=view->transform();
     auto* host=graph.findChild<QComboBox*>("graphHostFilter");host->setCurrentIndex(host->findData("host0"));
     for(const auto& e:graph.Model().edges)assert(!e.network_route);assert(view->transform()==zoom);

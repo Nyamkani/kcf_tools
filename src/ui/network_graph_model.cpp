@@ -1,5 +1,6 @@
 #include "kcf_tool/ui/graph_model.hpp"
 #include <map>
+#include <algorithm>
 #include <set>
 #include <sstream>
 #include <iomanip>
@@ -172,4 +173,35 @@ GraphModel AddRemoteGraph(GraphModel model,const NetworkSnapshot& network,const 
     AddVerifiedRoutes(model,network);
     return model;
 }
+CommunicationGraphModel AddRemoteCommunicationGraph(CommunicationGraphModel model,const NetworkSnapshot& network,const GraphOptions& options){
+    if(!options.local||(!options.host.empty()&&options.host!="local"))model={};
+    if(!options.remote)return model;
+    // Reuse the Ownership path's exact two-sided ACTIVE/freshness/identity and
+    // visibility checks. Display-only stale snapshots never enter this input.
+    auto current=network;
+    for(auto& h:current.hosts)if(!h.metadata_ready||h.state!="ONLINE"||h.compatibility!="COMPATIBLE")h.endpoints.clear();
+    const auto verified=AddRemoteGraph({},current,options);
+    std::map<std::string,const RemoteEndpoint*> endpoints;
+    for(const auto& h:current.hosts)for(const auto& e:h.endpoints)
+        if(e.session==h.session&&e.identity.host_id==h.id&&e.identity.boot_id==h.boot_id&&e.id==EndpointKey(e.identity)&&
+           e.runtime_id==h.id+":"+h.boot_id+":"+std::to_string(e.identity.pid)+":"+std::to_string(e.identity.start_ticks))
+            endpoints.emplace("remote-endpoint:"+e.id,&e);
+    std::set<std::string> visible;
+    for(const auto& node:verified.nodes)if(node.kind==GraphKind::Host||node.kind==GraphKind::Element){model.nodes.push_back(node);visible.insert(node.id);}
+    model.groups.insert(model.groups.end(),verified.groups.begin(),verified.groups.end());
+    for(const auto& edge:verified.edges)if(edge.network_route){
+        const auto source=endpoints.find(edge.from),destination=endpoints.find(edge.to);
+        if(source==endpoints.end()||destination==endpoints.end())continue;
+        auto route=edge;route.from="remote-runtime:"+source->second->runtime_id;route.to="remote-runtime:"+destination->second->runtime_id;
+        if(!visible.count(route.from)||!visible.count(route.to))continue;
+        route.detail+="\nPublisher: "+source->second->id+" / session "+std::to_string(source->second->session)+
+            "\nSubscriber: "+destination->second->id+" / session "+std::to_string(destination->second->session)+
+            "\nNetwork route evidence does not verify Application receive/processing success.";
+        model.network_edges.push_back({std::move(route),source->second->name,*source->second,*destination->second});
+    }
+    std::sort(model.nodes.begin(),model.nodes.end(),[](const auto& a,const auto& b){return std::tie(a.kind,a.group,a.label,a.id)<std::tie(b.kind,b.group,b.label,b.id);});
+    std::sort(model.network_edges.begin(),model.network_edges.end(),[](const auto& a,const auto& b){return std::tie(a.route.from,a.route.to,a.topic,a.publisher.id,a.subscriber.id,a.route.detail)<std::tie(b.route.from,b.route.to,b.topic,b.publisher.id,b.subscriber.id,b.route.detail);});
+    return model;
+}
+
 }

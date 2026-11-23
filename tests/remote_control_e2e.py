@@ -38,6 +38,42 @@ try:
         calls = owners[0].ask('STATS')['service_calls'] - calls_before
         lab.record('timeout_service_executions', details=calls)
         lan.require(0 <= calls <= 1, 'Timeout must not trigger automatic Service retry')
+    # Use actual local registrations, Discovery and Qt widgets. Only Metadata
+    # responses are dropped on host 2's private veth; announces/data keep flowing.
+    lab.record('snapshot_ready', details=tool.ask('SNAPSHOT_SELECT'))
+    lab.record('snapshot_subscription', details=tool.ask('SNAPSHOT_SUBSCRIBE'))
+    lab.inside(2, 'tc', 'qdisc', 'add', 'dev', 'lan0', 'root', 'handle', '1:',
+               'prio', 'bands', '3', 'priomap', *(['0']*16))
+    try:
+        lab.inside(2, 'tc', 'qdisc', 'add', 'dev', 'lan0', 'parent', '1:2',
+                   'handle', '20:', 'netem', 'loss', '100%')
+        # IPv4 without options: UDP payload offset 28; KCFD kind at offset 34.
+        # Match magic and METADATA_RESPONSE, not the announce or topic streams.
+        lab.inside(2, 'tc', 'filter', 'add', 'dev', 'lan0', 'protocol', 'ip',
+                   'parent', '1:', 'prio', '1', 'u32',
+                   'match', 'ip', 'protocol', '17', '0xff',
+                   'match', 'u32', '0x4b434644', '0xffffffff', 'at', '28',
+                   'match', 'u16', '0x0003', '0xffff', 'at', '34', 'flowid', '1:2')
+        shared[1].ask('ADD')
+        lab.record('snapshot_stale_gates_handle', details=tool.ask('SNAPSHOT_UPDATING'))
+    finally:
+        lab.inside(2, 'tc', 'qdisc', 'del', 'dev', 'lan0', 'root')
+    lab.record('snapshot_complete_same_handle', details=tool.ask('SNAPSHOT_COMPLETE'))
+    shared[1].ask('RECREATE')
+    lab.record('snapshot_registration_changed', details=tool.ask('SNAPSHOT_REPLACED'))
+    tool.ask('SNAPSHOT_SELECT')
+    shared[1].ask('REMOVE')
+    lab.record('snapshot_endpoint_removed', details=tool.ask('SNAPSHOT_REMOVED'))
+    shared[1].ask('RECREATE')
+    tool.ask('SNAPSHOT_SELECT')
+    gateways[1].ask('STOP')
+    lab.record('snapshot_lost', details=tool.ask('SNAPSHOT_LOST'))
+    gateways[1].ask('START')
+    tool.ask('SNAPSHOT_SELECT')
+    gateways[1].ask('STOP'); gateways[1].ask('START')
+    lab.record('snapshot_session_changed', details=tool.ask('SNAPSHOT_SESSION'))
+    shared[1].ask('REMOVE'); owners[1].stop()
+    lab.record('snapshot_valid_empty', details=tool.ask('SNAPSHOT_EMPTY'))
     lab.record('inflight_stop', details=tool.ask('STOP'))
     tool.stop()
     lan.require(tool.proc.returncode == 0, 'GUI close cleanup')

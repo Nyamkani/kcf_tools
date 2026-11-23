@@ -18,6 +18,8 @@
 #include <QPainterPath>
 #include <QAction>
 #include <QFontMetrics>
+#include <QScrollBar>
+#include <set>
 #include <map>
 #include <algorithm>
 
@@ -73,6 +75,8 @@ GraphWidget::GraphWidget(QWidget* parent):QWidget(parent) {
     remote_toggle_=toggle("Remote","graphRemote",true);
     auto* all_kinds=new QPushButton("Show all kinds");all_kinds->setObjectName("graphAllKinds");controls->addWidget(all_kinds);
     connect(all_kinds,&QPushButton::clicked,this,[this]{topics_toggle_->setChecked(true);parameters_toggle_->setChecked(true);services_toggle_->setChecked(true);actions_toggle_->setChecked(true);});
+    mode_=new QComboBox;mode_->setObjectName("graphMode");mode_->addItems({"Ownership","Communication"});controls->addWidget(mode_);
+    connect(mode_,&QComboBox::currentIndexChanged,this,[this]{Draw();});
     // Filters use a second row so controls remain usable on laptop screens.
     layout->addLayout(controls);controls=new QHBoxLayout;
     controls->addWidget(new QLabel("Host"));host_filter_=new QComboBox;host_filter_->setObjectName("graphHostFilter");
@@ -123,10 +127,20 @@ void GraphWidget::SetSnapshot(const std::vector<ApplicationInfo>& applications,c
     Draw();
 }
 void GraphWidget::Draw() {
+    const bool communication=mode_->currentIndex()==1;
+    std::set<QString> selected;
+    for(auto* item:scene_->selectedItems())selected.insert(item->data(0).toString());
+    const int horizontal=view_->horizontalScrollBar()->value(),vertical=view_->verticalScrollBar()->value();
+    parameters_toggle_->setEnabled(!communication);services_toggle_->setEnabled(!communication);actions_toggle_->setEnabled(!communication);
+    remote_toggle_->setEnabled(true);
     const GraphOptions options{topics_toggle_->isChecked(),parameters_toggle_->isChecked(),services_toggle_->isChecked(),
         filter_->currentData().toString().toStdString(),actions_toggle_->isChecked(),local_toggle_->isChecked(),remote_toggle_->isChecked(),
         host_filter_->currentData().toString().toStdString()};
-    model_=AddRemoteGraph(BuildGraph(applications_,elements_,topics_,parameters_,services_,options),network_,options);
+    communication_model_={};
+    if(communication){
+        communication_model_=AddRemoteCommunicationGraph(BuildCommunicationGraph(applications_,elements_,topics_,options),network_,options);
+        model_={};model_.groups=communication_model_.groups;model_.nodes=communication_model_.nodes;
+    }else model_=AddRemoteGraph(BuildGraph(applications_,elements_,topics_,parameters_,services_,options),network_,options);
     detail_->clear();detail_->hide();
     scene_->clear();std::map<std::string,QRectF> boxes;
     qreal y=40;
@@ -199,7 +213,52 @@ void GraphWidget::Draw() {
         QPolygonF arrow;arrow<<b<<b+QPointF(-9*direction,-4)<<b+QPointF(-9*direction,4);
         auto* head=scene_->addPolygon(arrow,QPen(Qt::NoPen),QBrush(color));head->setZValue(-1);head->setToolTip(tooltip);
     }
+    // Local metadata relations have their own edge model and visual language.
+    // Separate outer lanes keep parallel topics/fan-out labels distinguishable.
+    unsigned lane=0;
+    for(const auto& edge:communication_model_.edges){
+        const auto source=boxes.find(edge.from),destination=boxes.find(edge.to);
+        if(source==boxes.end()||destination==boxes.end())continue;
+        const QPointF a(source->second.right(),source->second.center().y()-9);
+        const QPointF b(destination->second.right(),destination->second.center().y()+9);
+        const qreal x=380+lane++*190;
+        QPainterPath path(a);path.lineTo(x,a.y());path.lineTo(x,b.y());path.lineTo(b);
+        const QColor color("#8054a1");
+        const QString tooltip=Text(edge.topic)+QString("\nMetadata registration relation only — delivery NOT verified\nPublisher PID %1 / start %2 / registration %3\nSubscriber PID %4 / start %5 / registration %6")
+            .arg(edge.publisher.runtime.pid).arg(edge.publisher.runtime.process_start_ticks).arg(edge.publisher.registration_id)
+            .arg(edge.subscriber.runtime.pid).arg(edge.subscriber.runtime.process_start_ticks).arg(edge.subscriber.registration_id);
+        auto* line=scene_->addPath(path,QPen(color,1.8,Qt::DashLine));line->setZValue(-1);line->setToolTip(tooltip);
+        line->setData(2,"communication-metadata");line->setData(3,Text(edge.from));line->setData(4,Text(edge.to));line->setData(5,Text(edge.topic));
+        QPolygonF arrow;arrow<<b<<b+QPointF(10,-5)<<b+QPointF(10,5);
+        auto* head=scene_->addPolygon(arrow,QPen(Qt::NoPen),QBrush(color));head->setToolTip(tooltip);head->setData(2,"communication-arrow");
+        auto* label=scene_->addSimpleText(QFontMetrics(font()).elidedText(Text(edge.topic),Qt::ElideMiddle,175));
+        label->setBrush(color);label->setPos(x+5,(a.y()+b.y())/2);label->setToolTip(tooltip);label->setData(2,"communication-topic");label->setData(5,Text(edge.topic));
+    }
+    // Use the same outer-lane layout, but a solid teal line exclusively for
+    // verified network evidence. Keep full Topic/route details in the tooltip.
+    for(const auto& edge:communication_model_.network_edges){
+        const auto from=boxes.find(edge.route.from),to=boxes.find(edge.route.to);
+        if(from==boxes.end()||to==boxes.end())continue;
+        const QPointF a(from->second.right(),from->second.center().y()-9),b(to->second.right(),to->second.center().y()+9);
+        const qreal x=930+190*lane++;
+        QPainterPath path(a);path.lineTo(x,a.y());path.lineTo(x,b.y());path.lineTo(b);
+        const QColor color("#007f9e");const auto tooltip=Text(edge.topic+"\n"+edge.route.detail);
+        auto* line=scene_->addPath(path,QPen(color,2.4,Qt::SolidLine));line->setZValue(-1);line->setToolTip(tooltip);
+        line->setData(2,"communication-verified");line->setData(3,Text(edge.route.from));line->setData(4,Text(edge.route.to));line->setData(5,Text(edge.topic));
+        QPolygonF arrow;arrow<<b<<b+QPointF(10,-5)<<b+QPointF(10,5);
+        auto* head=scene_->addPolygon(arrow,QPen(Qt::NoPen),QBrush(color));head->setToolTip(tooltip);head->setData(2,"communication-verified-arrow");
+        auto* label=scene_->addSimpleText(QFontMetrics(font()).elidedText(Text(edge.topic),Qt::ElideMiddle,175));label->setBrush(color);label->setPos(x+5,(a.y()+b.y())/2);label->setToolTip(tooltip);label->setData(2,"communication-verified-topic");
+    }
+    for(auto* item:scene_->items())if(item->flags().testFlag(QGraphicsItem::ItemIsSelectable)&&selected.count(item->data(0).toString()))item->setSelected(true);
     scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-24,-24,24,24));
+    view_->horizontalScrollBar()->setValue(horizontal);view_->verticalScrollBar()->setValue(vertical);
+    if(communication){
+        status_->setText(QString("Communication • %1 nodes • %2 Local Metadata only relations • %3 Verified ACTIVE network routes. Neither verifies Application reception. Service/Action client relations unavailable.")
+            .arg(model_.nodes.size()).arg(communication_model_.edges.size()).arg(communication_model_.network_edges.size()));
+        if(!options.topics)status_->setText(status_->text()+" • Topics hidden by filter");
+        status_->setToolTip("Purple dashed: Local Metadata only. Teal solid: two-sided Verified ACTIVE route, observations within 10 s at Refresh. No automatic expiry between refreshes. Host/Application/Local/Remote/Topics filters apply.");
+        return;
+    }
     std::size_t routes=0;for(const auto& e:model_.edges)if(e.network_route)++routes;
     status_->setText(QString("%1 nodes • %2 metadata relations • %3 verified network routes • ").arg(model_.nodes.size()).arg(model_.edges.size()-routes).arg(routes)+Text(network_.status));
     QStringList hidden;if(!topics_toggle_->isChecked())hidden<<"Topics";if(!parameters_toggle_->isChecked())hidden<<"Parameters";if(!services_toggle_->isChecked())hidden<<"Services";if(!actions_toggle_->isChecked())hidden<<"Actions";

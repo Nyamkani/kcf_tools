@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <map>
 #include <tuple>
+#include <set>
 
 namespace kcf_tool {
 namespace {
@@ -70,4 +71,61 @@ GraphModel BuildGraph(const std::vector<ApplicationInfo>& applications,
         return std::make_tuple(a.from,a.to,a.role,EndpointKey(a.endpoint))<std::make_tuple(b.from,b.to,b.role,EndpointKey(b.endpoint));});
     return model;
 }
+CommunicationGraphModel BuildCommunicationGraph(
+    const std::vector<ApplicationInfo>& applications,
+    const std::vector<ElementInfo>& elements,
+    const std::vector<TopicInfo>& topics,const GraphOptions& options) {
+    CommunicationGraphModel model;
+    if(!options.local || (!options.host.empty() && options.host!="local"))return model;
+    // Conflicting records for one runtime are not sufficient ownership evidence.
+    std::map<std::string,ElementInfo> runtimes;
+    std::set<std::string> ambiguous_runtimes;
+    for(const auto& e:elements){
+        if(e.identity.pid<=0 || !e.identity.process_start_ticks)continue;
+        const auto key=Identity(e.identity);
+        auto [it,inserted]=runtimes.emplace(key,e);
+        if(!inserted && std::make_tuple(e.name,Identity(e.supervisor),e.application_name)!=
+            std::make_tuple(it->second.name,Identity(it->second.supervisor),it->second.application_name))ambiguous_runtimes.insert(key);
+    }
+    std::vector<ElementInfo> owners;
+    for(const auto& [key,e]:runtimes)if(!ambiguous_runtimes.count(key))owners.push_back(e);
+    auto ownership=BuildGraph(applications,owners,{}, {},{},options);
+    model.groups=std::move(ownership.groups);model.nodes=std::move(ownership.nodes);
+    if(!options.topics)return model;
+    std::set<std::string> visible;
+    for(const auto& node:model.nodes)visible.insert(node.id);
+    using Registration=decltype(EndpointKey(EndpointIdentity{}));
+    std::map<Registration,TopicInfo> registrations;
+    std::set<Registration> ambiguous;
+    for(const auto& topic:topics){
+        const auto key=EndpointKey(topic.identity);
+        // Do not infer Runtime ownership from publisher/subscriber name lists.
+        if(topic.identity.runtime.pid<=0 || !topic.identity.runtime.process_start_ticks || !topic.identity.registration_id)continue;
+        auto [it,inserted]=registrations.emplace(key,topic);
+        if(!inserted && std::tie(topic.name,topic.role,topic.type_id,topic.payload_size)!=
+            std::tie(it->second.name,it->second.role,it->second.type_id,it->second.payload_size))ambiguous.insert(key);
+    }
+    struct Channel {std::vector<const TopicInfo*> publishers,subscribers;};
+    std::map<std::string,Channel> channels;
+    for(const auto& [key,t]:registrations){
+        if(ambiguous.count(key)||t.name.empty()||t.name.front()!='/'||
+            !visible.count("element:"+Identity(t.identity.runtime)))continue;
+        if(t.role=="PUBLISHER")channels[t.name].publishers.push_back(&t);
+        else if(t.role=="SUBSCRIBER")channels[t.name].subscribers.push_back(&t);
+    }
+    for(const auto& [name,channel]:channels)for(const auto* pub:channel.publishers)for(const auto* sub:channel.subscribers){
+        // Known contradictory type metadata cannot establish a relationship.
+        // Unknown type information is allowed only as registration evidence.
+        if((pub->type_id&&sub->type_id&&pub->type_id!=sub->type_id)||
+           (pub->payload_size&&sub->payload_size&&pub->payload_size!=sub->payload_size))continue;
+        model.edges.push_back({"element:"+Identity(pub->identity.runtime),
+            "element:"+Identity(sub->identity.runtime),name,pub->identity,sub->identity});
+    }
+    std::sort(model.edges.begin(),model.edges.end(),[](const auto& a,const auto& b){
+        return std::make_tuple(a.from,a.to,a.topic,EndpointKey(a.publisher),EndpointKey(a.subscriber))<
+               std::make_tuple(b.from,b.to,b.topic,EndpointKey(b.publisher),EndpointKey(b.subscriber));
+    });
+    return model;
+}
+
 }

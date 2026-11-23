@@ -28,5 +28,30 @@ GraphModel BuildGraph(const std::vector<ApplicationInfo>& applications,
                       const std::vector<ParameterInfo>& parameters,
                       const std::vector<ServiceInfo>& services,
                       const GraphOptions& options = {});
+// Local registration evidence only, never proof of delivery or a verified
+// Network Route. Each edge retains both registrations, including incarnation.
+enum class CommunicationEvidence { Metadata };
+struct CommunicationEdge {
+    std::string from, to, topic;
+    EndpointIdentity publisher, subscriber;
+    CommunicationEvidence evidence{CommunicationEvidence::Metadata};
+};
+struct RemoteCommunicationEdge {
+    GraphEdge route; // Verified route mapped to runtime nodes, never Metadata.
+    std::string topic;
+    RemoteEndpoint publisher, subscriber; // full endpoint identities and sessions
+};
+struct CommunicationGraphModel {
+    std::vector<GraphGroup> groups;
+    std::vector<GraphNode> nodes; // Element nodes plus optional Remote Host headings; same IDs as Ownership.
+    std::vector<CommunicationEdge> edges;
+    std::vector<RemoteCommunicationEdge> network_edges;
+};
+CommunicationGraphModel BuildCommunicationGraph(
+    const std::vector<ApplicationInfo>& applications,
+    const std::vector<ElementInfo>& elements,
+    const std::vector<TopicInfo>& topics,
+    const GraphOptions& options = {});
+CommunicationGraphModel AddRemoteCommunicationGraph(CommunicationGraphModel, const NetworkSnapshot&, const GraphOptions& = {});
 GraphModel AddRemoteGraph(GraphModel local, const NetworkSnapshot&, const GraphOptions& = {});
 }

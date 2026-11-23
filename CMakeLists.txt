@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
-project(kcf_tool VERSION 0.14.0 LANGUAGES CXX)
+project(kcf_tool VERSION 0.15.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(KCF_TOOL_BUILD_GUI "Build Qt Widgets application" ON)
 option(KCF_TOOL_BUILD_TESTS "Build backend and widget smoke checks" OFF)
 option(KCF_TOOL_ENABLE_PACKAGING "Enable real-backend, static-Core DEB packaging" OFF)
-set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (optional; v0.14 Remote Control/Topic and Diagnostics target KCF v5.4 public APIs; older API configurations retain Local/Discovery support; absent KCF uses Mock/stub)")
+set(KCF_SOURCE_DIR "" CACHE PATH "External KCF source root (real Backend requires Core >=5.6.1 with complete metadata Snapshot, Remote Control/Topic and Diagnostics APIs; absent Core uses Mock/stub)")
 
 set(KCF_TOOL_NETWORK_DIAGNOSTICS OFF)
 set(KCF_TOOL_REMOTE_CONTROL OFF)
@@ -15,6 +15,38 @@ target_include_directories(kcf_tool_backend PUBLIC include)
 if(KCF_SOURCE_DIR)
     if(NOT EXISTS "${KCF_SOURCE_DIR}/kcf/include/kcf/dynamic/dynamic_service_client.hpp")
         message(FATAL_ERROR "KCF_SOURCE_DIR must provide the R5 public dynamic APIs")
+    endif()
+    include(CheckCXXSourceCompiles)
+    include(CMakePushCheckState)
+    cmake_push_check_state(RESET)
+    set(CMAKE_REQUIRED_INCLUDES "${KCF_SOURCE_DIR}/kcf/include")
+    # Recheck even when the source path is unchanged but its working tree changed.
+    unset(KCF_TOOL_CORE_561_API CACHE)
+    check_cxx_source_compiles([=[
+#include <kcf/network/peer_discovery.hpp>
+#include <kcf/network/remote_control_client.hpp>
+#include <kcf/network/remote_topic_client.hpp>
+#include <kcf/network/network_diagnostics_client.hpp>
+#include <type_traits>
+#include <utility>
+constexpr kcf::network::FrameworkVersion version{};
+static_assert(version.major > 5 || (version.major == 5 &&
+    (version.minor > 6 || (version.minor == 6 && version.patch >= 1))),
+    "KCF Tools 0.15 requires Core >=5.6.1");
+using Snapshot = decltype(std::declval<kcf::network::PeerInfo>().last_complete_snapshot);
+static_assert(std::is_same_v<decltype(Snapshot::valid), bool>);
+static_assert(std::is_same_v<decltype(Snapshot::stale), bool>);
+static_assert(std::is_same_v<decltype(Snapshot::revision), std::uint64_t>);
+static_assert(std::is_same_v<decltype(Snapshot::endpoints),
+    std::vector<kcf::network::NetworkEndpointMetadata>>);
+static_assert(sizeof(kcf::network::RemoteControlClient) > 0);
+static_assert(sizeof(kcf::network::RemoteTopicClient) > 0);
+static_assert(sizeof(kcf::network::NetworkDiagnosticsClient) > 0);
+int main() { return 0; }
+]=] KCF_TOOL_CORE_561_API)
+    cmake_pop_check_state()
+    if(NOT KCF_TOOL_CORE_561_API)
+        message(FATAL_ERROR "KCF Tools 0.15 real Backend requires Core >=5.6.1 with PeerInfo.last_complete_snapshot (valid/stale/uint64 revision/endpoints), Remote Control/Topic and Diagnostics APIs. Core 5.6.0 is unsupported. Check KCF_SOURCE_DIR and the CMake compile-check log.")
     endif()
     find_package(Threads REQUIRED)
     find_package(nlohmann_json 3.2 REQUIRED)

@@ -1,11 +1,10 @@
 # Generic Remote Control / Multi-Host UI
 
-KCF Tools **v0.14** (CMake **0.14.0**)의 현재 Remote 기능을 설명합니다.
-Framework 연동 기준은 **KCF v5.4**이며, 실제 검증 범위와 Framework 커밋 기준은
-[v0.14 릴리스 노트](V0_14_RELEASE_NOTES.md)에 구분합니다. 공개 Release/tag는 생성하지 않습니다.
-Framework의 `RemoteControlClient`, `RemoteTopicClient`, TypeDescriptor Query가 있는
-최신 sibling working tree를 사용합니다. 구형 Framework는 기존 관측 기능을 유지하고,
-Framework 없는 Mock/stub에서는 Remote 조작이 지원되지 않습니다.
+KCF Tools **v0.15.0**의 현재 Remote 기능을 설명합니다.
+실제 Backend는 **Core >=5.6.1 및 필수 Snapshot/Remote Control/Topic/Diagnostics 공개 API**를 요구합니다.
+Core 5.6.0 또는 필수 API가 없는 소스는 Configure에서 거부합니다. Core 없는 Mock/stub에서는
+Remote 조작이 지원되지 않습니다. 과거 v0.14/v5.4 기준과 결과는
+[v0.14 릴리스 노트](V0_14_RELEASE_NOTES.md)에 보존하며 새 Release/tag를 생성한 것은 아닙니다.
 
 ## 빌드 및 실행
 
@@ -27,7 +26,7 @@ IP는 Tool 장비의 실제 IPv4로 변경합니다. Host ID는 장비마다 고
 상단에서 IPv4 interface, Discovery port, Host ID를 지정하고 **Apply network settings**를
 누릅니다. Host ID는 Qt settings에 저장되어 다음 GUI 실행의 입력값으로 제공됩니다.
 CLI 없이 저장값만 존재하는 경우 자동으로 제어를 활성화하지 않으며 Apply가 필요합니다.
-Host ID가 비어 있으면 임시 identity의 Observer입니다. NET56-4C/5A 개발 연동에서는
+Host ID가 비어 있으면 임시 identity의 Observer입니다. 현재 Core 5.6.1 연동에서는
 공개 REMOTE Publisher의 Descriptor 조회와 Topic 구독도 가능하며 Parameter/Service/Action 제어는 비활성입니다.
 [현재 Observer 및 Local Gateway IPC 계약](NETWORK_OBSERVATION.md#현재-net56-구현)을 참고하세요.
 
@@ -62,6 +61,39 @@ packed TypeDescriptor와 Framework canonical codec으로 scalar/fixed array를 �
 Discovery가 제공하지 않는 endpoint 없는 Remote runtime이나 membership은 추정하지 않습니다.
 현재 `PeerInfo`에는 Host 표시 이름이 없으므로 Host label은 실제 Host ID로 표시합니다.
 
+<a id="v015-metadata-states"></a>
+
+## v0.15 Metadata 갱신과 안전한 선택
+
+- **READY:** ONLINE·COMPATIBLE이며 metadata_ready=true인 현재 endpoints를 표시합니다.
+  정상 빈 목록은 목록을 비우며 과거 Snapshot을 대신 표시하지 않습니다.
+- **UPDATING / STALE:** 동일 Host/Boot/Session의 유효한 stale `last_complete_snapshot`을 표시합니다.
+  트리 헤더·Endpoint 목록·상세에 UPDATING / STALE과 표시 전용임을 명시합니다.
+  동일 Identity의 시각적 선택을 유지하되 실행 가능한 선택은 아닙니다.
+- **INVALID:** LOST, Boot/Session/Observer 세대 변경, Discovery 오류, Snapshot 부재·무효는
+  이전 세대 목록·선택을 무효화합니다. INVALID는 UI 처리 상태 설명이며 새 Protocol 값이 아닙니다.
+
+STALE에서는 신규 Subscribe, Get, Prepare, Set, Service Call, Action Goal을 차단합니다.
+버튼 비활성화뿐 아니라 실제 Submit에서 최신 Backend Snapshot의 현재 Identity·역할·scope·권한을
+재검사합니다. Action Cancel도 기존 현재성·권한 조건을 유지하며 stale 목록만으로 허용하지 않습니다.
+Metadata 수집 완료 시 동일 Identity는 선택을 유지하고 registration 변경·삭제 시 무효화합니다.
+동일 목록은 불필요한 트리 재생성을 피하고 선택·스크롤·확장 상태를 가능한 유지합니다.
+목록 구조 자체가 바뀌면 트리는 재구성될 수 있습니다.
+
+기존 Subscribe Handle은 Metadata 갱신만으로 자동 Unsubscribe하지 않습니다.
+명시적 Unsubscribe는 Endpoint가 STALE여도 Handle 및 Observer 세대가 유효하면 허용합니다.
+비동기 Subscribe 완료는 요청 세대와 선택 Identity를 확인하여 동일 STALE 선택에는 Handle을 보존하고,
+더 이상 유효하지 않은 결과는 정리합니다. LOST/세대 변경 시 화면 선택의 무효화와
+구독 리소스 정리는 별개이며 자동 재구독·Action reattach는 제공하지 않습니다.
+연결 상실을 실제 장치 정지로 표시하지 않습니다.
+
+기존 [Virtual LAN / Qt offscreen 통합 기록](NETWORK_OBSERVATION.md#v015-snapshot-validation)은
+READY → STALE → READY 선택 및 동일 Subscribe Handle 유지·수신, 신규 요청 차단,
+registration 변경·삭제·빈 목록·LOST·Session 변경을 PASS로 확인했습니다.
+최초 Network 환경 실패와 후속 PASS는 해당 기록에 구분합니다. 이번 문서 작업에서 재실행하지 않았습니다.
+실물 OPI5+의 ARM/DISARM 전환 중 Metadata 갱신, 실제 LAN 단절·재연결과 다중 Gateway 동시 제어는
+추가 수동 검증이 필요합니다. 사용자 확인 Local Graph PASS를 이 원격 제어 검증으로 확대하지 않습니다.
+
 ## 수명과 결과 의미
 
 Observer 하나의 PeerDiscovery를 Diagnostics, Control, Topic client가 공유합니다.
@@ -78,7 +110,7 @@ Session/boot/registration 변경이나 LOST 시 선택/편집/표시값을 무�
 `response_received`, `execution_unknown`, `cancel_unknown`을 개별 표시하며,
 Set/Call/Goal timeout 후 자동 재시도하지 않습니다. Set 성공과 readback 실패도 구분합니다.
 권한 없는 Gateway는 명시적 오류 또는 HELLO 연결 종료로 나타날 수 있습니다.
-구형/미지원 구성은 조작 불가 상태를 표시합니다.
+구형/미지원 Remote Gateway는 조작 불가 또는 명시적 오류로 처리합니다. 빌드용 Core의 최소 버전 조건과는 별개입니다.
 
 Graph는 기존 양쪽 Gateway의 ACTIVE Route 검증과 10초 freshness를 유지합니다.
 수동 Refresh 후의 표시를 자동 만료시키지 않습니다. Tool 자체에는 Diagnostics TCP

@@ -54,6 +54,12 @@ struct RemoteNetworkDiagnostics {
     bool truncated{};
     std::vector<RemoteRoute> routes; // per Gateway; never merged by name
 };
+// Display only: never use these endpoints for execution or route compatibility.
+struct RemoteMetadataSnapshot {
+    bool valid{}, stale{};
+    std::uint64_t revision{};
+    std::vector<RemoteEndpoint> endpoints;
+};
 struct RemoteHost {
     std::string id, boot_id, label, address, state, framework_version, network_version;
     std::string compatibility, capabilities;
@@ -61,6 +67,7 @@ struct RemoteHost {
     bool metadata_ready{};
     std::vector<RemoteEndpoint> endpoints;
     RemoteNetworkDiagnostics diagnostics;
+    RemoteMetadataSnapshot last_complete_snapshot;
 };
 struct NetworkSnapshot {
     std::string observer_host;bool remote_control_available{false};

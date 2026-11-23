@@ -1,7 +1,61 @@
 # Network Remote Discovery / Graph 관측
 
-현재 Tools 버전은 **0.14.0**, NET56 연동 대상은 **Framework 5.5.0 개발 작업 트리**다.
-v5.6.0 정식 릴리스·배포를 선언하지 않는다. 이번 정합성 작업에서는 빌드·시험을 재실행하지 않았다.
+현재 Tools 버전은 **0.15.0**이며 실제 Backend는 **Core >=5.6.1 및 필수 공개 API**를 요구한다.
+Configure에서 `PeerInfo.last_complete_snapshot`의 필드 타입과 Remote Control/Topic/Diagnostics Client를 검사한다.
+Core 5.6.0은 거부하며 구형 API fallback은 제공하지 않는다. Core 없는 Mock/stub는 유지한다.
+아래 Historical 검증은 당시 소스 기준이며 이번 문서 작업에서 시험을 재실행하지 않았다.
+
+## v0.15 마지막 정상 Metadata Snapshot
+
+`RemoteHost.endpoints`는 현재 유효한 Metadata만 포함한다. `metadata_ready=false`이면 비운다.
+별도의 `RemoteHost.last_complete_snapshot`은 `valid`, `stale`, `revision`(uint64), `endpoints`를 보존한다.
+Endpoint 변환은 현재 목록과 동일한 Identity 검증을 적용하지만 표시용 목록을 Route Compatibility나
+실행 가능성 판단에 합치지 않는다. 새 Revision 수집이 완료되면 현재 목록과 마지막 정상 Snapshot을 갱신한다.
+
+| 상태 | Remote Workspace 표시 | 신규 실행 |
+| --- | --- | --- |
+| READY | ONLINE/호환/metadata_ready인 현재 endpoints; 정상 빈 목록도 그대로 표시 | 현재 Identity·역할·scope·권한을 만족할 때만 허용 |
+| UPDATING / STALE | 동일 Host/Boot/Session의 valid && stale Snapshot으로 목록과 선택을 표시 전용 유지 | Subscribe/Get/Prepare/Set/Call/Goal 차단 |
+| INVALID | LOST, 세대 변경, Discovery 오류 또는 사용할 Snapshot 없음: 이전 목록·선택 무효화 | 차단 |
+
+INVALID는 처리 상태의 설명이며 새 wire enum이 아니다. 마지막 정상 목록을 현재 유효한 Endpoint로
+승격하지 않는다. READY 복귀 시 동일 Identity는 유지하고 registration 변경·삭제 시 선택을 무효화한다.
+정상 빈 Metadata는 과거 목록으로 대체하지 않는다. 기존 Subscribe Handle은 Metadata 갱신만으로
+자동 해제하지 않으며 명시적 Unsubscribe는 허용한다. 상세 수명·제어 게이트는
+[Remote Workspace 상태 계약](REMOTE_CONTROL.md#v015-metadata-states)을 따른다.
+
+Local Gateway `GET_PEERS`도 선택적 `last_complete_snapshot`을 별도로 파싱한다.
+필드 부재(구형 응답), valid=false, valid=true의 빈 endpoints를 구분하며 revision은 uint64 최대값까지 지원한다.
+Snapshot Endpoint도 기존 형식/Identity 검사를 적용하고 잘못된 타입·Revision·Endpoint는 거부한다.
+기존 1 MiB 제한과 `-E2BIG` 처리는 유지한다. 이 IPC Snapshot은 표시 전용이며
+Direct Observer의 제어/구독/Route 권한이나 연결 증거로 사용하지 않는다.
+
+<a id="v015-snapshot-validation"></a>
+
+## 기존 Virtual LAN 통합 검증 기록
+
+보존된 Tools #2-3 실행 로그를 대조한 결과다. 이번 문서 작업에서 재실행한 결과가 아니며,
+v0.15 정식 패키지·물리 LAN 검증으로 소급하지 않는다. `/tmp` 로그는 영구 배포 산출물이 아니다.
+
+- 최초 `/tmp/kcf-tools-2-3-network-before/results.json`: **FAIL**.
+  `ip link add kcfbr0 type bridge mcast_snooping 0`가 exit 1로 실패하여 Network 검증에 도달하지 못했다.
+  이 로그만으로 정확한 환경 원인은 확정하지 않는다.
+- `/tmp/kcf-tools-2-3-network-baseline/results.json`: **PASS**, 격리 Virtual LAN + 독립 Observer + Qt offscreen.
+  ONLINE Host 2개, 양쪽 ACTIVE Route 2개(동일 경로의 송신/수신 관측), Graph Edge 1개.
+  실제 관측 Publisher **198.25 Hz**, Send **48.98 Hz**, Receive/Proxy **49.49 Hz**, Skipped **145.96/s**.
+  Query 실패·LOST·Diagnostics 비활성 시 Edge 0개, Gateway 재시작 후 새 Session 및 Edge 복구,
+  11초 후 수동 Refresh에서 만료 Edge 0개를 확인했다.
+- `/tmp/kcf-tools-2-3-remote-baseline/results.json`: 기존 Control/Topic/GUI, Session 변경,
+  재설정, Timeout 결과 및 진행 중 Stop **PASS**.
+- `/tmp/kcf-tools-2-3-remote-verified/results.json` 및 `remote-final/results.json`: Snapshot 통합 **PASS**.
+  실제 Discovery READY → Revision 갱신 STALE에서 목록·선택 유지와 신규 요청 차단,
+  동일 Handle 7 유지·수신 지속, 완료 후 동일 선택 유지, registration 변경·Endpoint 삭제·
+  정상 빈 목록·LOST·Session 변경의 무효화를 확인했다.
+  최종 Timeout 결과는 execution_unknown=1 / response_received=0, Service 실행 1회였다.
+  앞선 baseline/verified의 response_received=1 기록과 구분하여 보존한다.
+
+위 결과는 실물 OPI5+ ARM/DISARM, 물리 LAN 복구, 다중 관계 데스크톱 가독성 또는
+Remote Communication View 수동 검증의 PASS가 아니다. 기존 실패/재실행 및 미확정 Known Issue는 아래에 보존한다.
 
 ## 현재 NET56 구현
 

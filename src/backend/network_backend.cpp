@@ -44,25 +44,28 @@ std::string Capabilities(net::CapabilitySet bits) {
     for(unsigned i=0;i<14;++i)if(bits & (1ull<<i)){if(!out.empty())out+=", ";out+=names[i];}
     return out+" (raw="+std::to_string(bits)+")";
 }
-NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
+} // namespace
+namespace detail {
+// Pure conversion shared by the observer and deterministic backend tests.
+NetworkSnapshot ConvertNetworkPeers(const std::vector<net::PeerInfo>& peers, int error) {
     NetworkSnapshot out;out.status=error?"Discovery error: "+std::to_string(error):"Network discovery running (manual Refresh)";
     if(error)return out; // Do not present cached peers as live after worker failure.
     using Candidate=std::pair<const net::PeerInfo*,const net::NetworkEndpointMetadata*>;
     std::map<std::pair<net::EndpointKind,std::string>,std::vector<Candidate>> index;
-    for(const auto& peer:peers)if(peer.metadata_ready)
+    for(const auto& peer:peers)if(peer.state==net::PeerState::ONLINE&&peer.metadata_ready)
         for(const auto& e:peer.endpoints)index[{e.kind,e.name}].push_back({&peer,&e});
     for(const auto& peer:peers){
         RemoteHost host;host.id=Key(peer.host);host.boot_id=Key(peer.boot_id);host.label=host.id;
         host.address=peer.address+":"+std::to_string(peer.port);
         host.state=peer.state==net::PeerState::ONLINE?"ONLINE":"LOST";
-        host.session=peer.session_id;host.revision=peer.metadata_revision;host.metadata_ready=peer.metadata_ready;
+        host.session=peer.session_id;host.revision=peer.metadata_revision;host.metadata_ready=peer.state==net::PeerState::ONLINE&&peer.metadata_ready;
         host.age_ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-peer.last_seen).count();
         const auto& f=peer.profile.framework;const auto& n=peer.profile.network;
         host.framework_version=std::to_string(f.major)+"."+std::to_string(f.minor)+"."+std::to_string(f.patch);
         host.network_version=std::to_string(n.major)+"."+std::to_string(n.minor);
         host.compatibility=net::CompatibilityReasonName(peer.compatibility.reason);
         host.capabilities=Capabilities(peer.profile.capabilities);
-        if(peer.metadata_ready)for(const auto& e:peer.endpoints){
+        auto convert_endpoint=[&](const net::NetworkEndpointMetadata& e,bool current){
             RemoteEndpoint endpoint;
             endpoint.identity={Key(e.identity.runtime.host),Key(e.identity.runtime.boot_id),e.identity.runtime.pid,e.identity.runtime.process_start_ticks,e.identity.registration_id};endpoint.session=peer.session_id;
             const auto wire=[](const net::TypeIdentity& t){return RemoteTypeIdentity{t.type_id,t.schema_id,t.encoding_id,t.payload_size};};
@@ -70,7 +73,7 @@ NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
             endpoint.application_id=e.application.pid?Key(e.application):host.id+":"+host.boot_id+":standalone";
             endpoint.application=e.application_name.empty()?"Standalone":e.application_name;
             endpoint.element=e.element_name;endpoint.name=e.name;
-            if(!e.host_name.empty())host.label=e.host_name;
+            if(current&&!e.host_name.empty())host.label=e.host_name;
             endpoint.kind=e.kind==net::EndpointKind::TOPIC?"T":e.kind==net::EndpointKind::PARAMETER?"P":e.kind==net::EndpointKind::SERVICE?"S":"A";
             const bool provider=e.role==net::EndpointRole::PROVIDER;
             endpoint.role=endpoint.kind=="T"?(provider?"PUBLISHER":"SUBSCRIBER"):
@@ -80,14 +83,25 @@ NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
                 "request/goal: "+Type(e.request_type)+"\nresponse/result: "+Type(e.response_type)+"\nfeedback: "+Type(e.feedback_type);
             // Pairwise diagnostics are observations, never proof of a route.
             std::size_t examined=0;
-            for(const auto& pair:index.at({e.kind,e.name})){
+            if(current)for(const auto& pair:index.at({e.kind,e.name})){
                 if(++examined>32){endpoint.diagnostic+="Pair comparison limit reached (32 candidates)\n";break;}
                 const auto& other=*pair.first;const auto& candidate=*pair.second;
                 if(other.host==peer.host || candidate.role==e.role)continue;
                 const auto check=net::CheckEndpointCompatibility(peer.profile,other.profile,e,candidate);
                 if(!check.Compatible())endpoint.diagnostic+=Key(candidate.identity)+": "+net::CompatibilityReasonName(check.reason)+"\n";
             }
-            host.endpoints.push_back(std::move(endpoint));
+            return endpoint;
+        };
+        if(host.metadata_ready)for(const auto& e:peer.endpoints)
+            host.endpoints.push_back(convert_endpoint(e,true));
+        // Core owns snapshot lifetime within this Host/Boot/Session. Do not keep
+        // a Tool-side cache across observations or promote display data to live.
+        if(peer.state==net::PeerState::ONLINE&&peer.last_complete_snapshot.valid){
+            const auto& snapshot=peer.last_complete_snapshot;
+            auto& display=host.last_complete_snapshot;
+            display.valid=snapshot.valid;display.stale=snapshot.stale;display.revision=snapshot.revision;
+            for(const auto& e:snapshot.endpoints)display.endpoints.push_back(convert_endpoint(e,false));
+            std::sort(display.endpoints.begin(),display.endpoints.end(),[](const auto& a,const auto& b){return a.id<b.id;});
         }
         std::sort(host.endpoints.begin(),host.endpoints.end(),[](const auto& a,const auto& b){return a.id<b.id;});
         out.hosts.push_back(std::move(host));
@@ -95,6 +109,8 @@ NetworkSnapshot Convert(const std::vector<net::PeerInfo>& peers, int error) {
     std::sort(out.hosts.begin(),out.hosts.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     return out;
 }
+} // namespace detail
+namespace {
 #ifdef KCF_TOOL_HAS_NETWORK_DIAGNOSTICS
 using Clock=std::chrono::steady_clock;
 struct CachedDiagnostics {
@@ -220,7 +236,7 @@ private:
                     }
                 }
 #endif
-                auto next=Convert(peers,discovery.GetLastError());next.observer_host=Key(config.host);
+                auto next=detail::ConvertNetworkPeers(peers,discovery.GetLastError());next.observer_host=Key(config.host);
                 next.explicit_control_identity=!options.host_id.empty();
 #ifdef KCF_TOOL_HAS_REMOTE_CONTROL
                 next.network_client_available=executor&&!executor->StartError();

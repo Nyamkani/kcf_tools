@@ -3,7 +3,39 @@
 기존 ToolBackend discovery 계약을 사용하는 Local 구조 시각화다. Local Graph 자체는
 Framework 및 기존 Local Backend 동작을 변경하지 않는다. 별도의 Network Backend 확장은
 아래 Remote metadata 절에서 설명한다. 기존 여섯 탭 뒤에 Graph 탭을 추가하여 탭 순서와 기존
-Elements/Topics/Parameters/Services 동작을 유지한다. 기본 기능은 [v0.12](V0_12_RELEASE_NOTES.md)에 포함됐으며, 현재 [v0.13](V0_13_RELEASE_NOTES.md)은 아래 Verified Route Graph를 추가한다.
+Elements/Topics/Parameters/Services 동작을 유지한다. 기본 기능은 [v0.12](V0_12_RELEASE_NOTES.md)에 포함됐으며, [v0.13](V0_13_RELEASE_NOTES.md)에서 Verified Route Graph를 추가했고 현재 v0.15는 Communication 모드도 제공한다.
+
+<a id="v015-communication-graph"></a>
+
+## v0.15 Ownership / Communication
+
+Graph의 모드 선택은 **Ownership(기본) / Communication**이다. Ownership의 기존 소유 관계·
+Node Activation·상세·필터와 Verified Route는 유지한다. Communication은 Element를 노드로 표시한다.
+
+- Local: `BuildCommunicationGraph()`는 같은 Local Host의 동일 Topic과 실제 Runtime/registration/role을 연결한다.
+  Publisher Element → Subscriber Element 방향의 **보라색 점선**과 Topic 라벨을 표시한다.
+  이는 Metadata 등록 관계이며 실제 Topic 수신 성공을 뜻하지 않는다. 이름으로 Element를 추정하지 않는다.
+- Remote: `AddRemoteCommunicationGraph()`는 기존 양쪽 Gateway 검증을 재사용한다.
+  전체 Endpoint identity, source/destination Session, route_id, sending 역할 및 ACTIVE 상태가 일치하고
+  양쪽 Gateway가 ONLINE/호환/Metadata Ready이며 Diagnostics가 성공·10초 이내일 때만 **청록색 실선**을 표시한다.
+  Element 간 Topic 라벨과 방향을 표시하며 tooltip에서 개별 Endpoint·Route ID·Send/Receive Hz를 확인한다.
+  STALE Snapshot, LOST, 세대 변경, 만료된 관측은 경로 증거로 사용하지 않는다.
+- Verified Route도 Network 경로 증거이며 Application의 수신·처리 성공 보장은 아니다.
+  같은 Topic 이름만으로 Remote 관계를 만들지 않으며 Service/Action Client 호출 관계는 발견 근거가 없어 표시하지 않는다.
+- Host/Application/Local/Remote/Topics 필터로 양 끝이 모두 보이는 관계만 표시한다.
+  여러 Topic과 fan-out은 별도 라벨·방향 간선으로 표현한다. 전체 교차선 최적화는 제공하지 않는다.
+- 모드 전환·Refresh에서 가능한 동일 Identity 선택과 Zoom/Pan을 유지하며 Fit은 명시적 동작이다.
+  Graph는 수동 Refresh 방식이며 표시 이후 10초가 지났다고 기존 선을 자동 만료시키지 않는다.
+  Local Runtime이 없어도 유효한 Remote Snapshot은 표시한다.
+
+### 검증 범위
+
+- **사용자 확인: 실제 Local Communication GUI 수동 테스트 PASS.** 자동/offscreen 결과와 별도 기록이다.
+- 직전 v0.15 준비의 Mock/stub CTest 6/6 PASS에는 graph_model, graph_smoke, network_graph가 포함된다.
+- 기존 Virtual LAN의 실제 Route/Graph 검증은 [Network 기록](NETWORK_OBSERVATION.md#v015-snapshot-validation)을 따른다.
+  이를 실물 Remote Communication Graph 수동 PASS로 간주하지 않는다.
+- **미검증:** 실제 데스크톱에서 복잡한 다중 Topic/fan-out 라벨의 가독성·겹침,
+  실물 다중 Host Remote Graph, 필터·모드 전환·Zoom/Pan/Fit의 종합 수동 조작.
 
 ## 모델과 표현
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "kcf_tool/model/network_info.hpp"
 #include <memory>
+#include <optional>
 namespace kcf_tool {
 struct LocalGatewayEndpoint {
     RouteEndpointIdentity identity, application; // application.registration_id is unused
@@ -9,11 +10,18 @@ struct LocalGatewayEndpoint {
     RemoteTypeIdentity value_type, request_type, response_type, feedback_type;
     std::vector<std::string> groups;
 };
+struct LocalGatewayMetadataSnapshot {
+    bool valid{}, stale{};
+    std::uint64_t revision{};
+    std::vector<LocalGatewayEndpoint> endpoints;
+};
 struct LocalGatewayPeer {
     std::string host, boot, address, state;
     std::uint64_t session{}, metadata_revision{};
     unsigned metadata_port{};bool metadata_ready{};
     std::vector<LocalGatewayEndpoint> endpoints;
+    // Display only; absence denotes a legacy Gateway response. Never use for control.
+    std::optional<LocalGatewayMetadataSnapshot> last_complete_snapshot;
 };
 enum class LocalGatewayConnection { DISABLED, CONNECTING, READY, ERROR };
 struct LocalGatewaySnapshot {

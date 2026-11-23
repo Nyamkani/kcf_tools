@@ -2,16 +2,29 @@
 #define main FrameworkVirtualMain
 #include "host_fixture.cpp"
 #undef main
+#include <mutex>
 int main(int argc,char** argv){
     try {
         if(argc!=3)return 2;
         const int host=std::stoi(argv[2]);
 #ifdef KCF_TOOL_TEST_REMOTE_CONTROL
         if(std::string(argv[1])=="shared"){
-            Begin();kcf::Publisher<Value> publisher;Check(publisher.Create("/virtual/shared/topic",8));std::atomic<bool> active{true};
-            std::thread worker([&]{int count=host*100000;while(active){Check(publisher.Publish({++count,false,1.5}));std::this_thread::sleep_for(5ms);}});
-            Emit({{"ready",1}});std::string line;while(std::getline(std::cin,line)&&line!="QUIT")Emit({{"ready",1}});
-            active=false;worker.join();publisher.Close();publisher.Unlink();End();return 0;
+            Begin();kcf::Publisher<Value> publisher, extra;Check(publisher.Create("/virtual/shared/topic",8));std::atomic<bool> active{true};
+            std::mutex mutex;bool open=true,extra_open=false;
+            std::thread worker([&]{int count=host*100000;while(active){{std::lock_guard<std::mutex> lock(mutex);if(open)Check(publisher.Publish({++count,false,1.5}));}std::this_thread::sleep_for(5ms);}});
+            Emit({{"ready",1}});std::string line;while(std::getline(std::cin,line)&&line!="QUIT"){
+                std::lock_guard<std::mutex> lock(mutex);
+                // Local registration changes drive real ControlNode metadata collection.
+                if(line=="ADD"&&!extra_open){Check(extra.Create("/virtual/extra/topic",8));extra_open=true;}
+                if(line=="REMOVE"||line=="RECREATE"){
+                    if(open){publisher.Close();publisher.Unlink();open=false;}
+                    if(extra_open){extra.Close();extra.Unlink();extra_open=false;}
+                }
+                if(line=="RECREATE"){Check(publisher.Create("/virtual/shared/topic",8));open=true;}
+                Emit({{"ready",1}});
+            }
+            active=false;worker.join();if(open){publisher.Close();publisher.Unlink();}
+            if(extra_open){extra.Close();extra.Unlink();}End();return 0;
         }
 #endif
         if(std::string(argv[1])!="gateway")return FrameworkVirtualMain(argc,argv);

@@ -1,13 +1,13 @@
-# KCF Tool — v0.14
+# KCF Tool — v0.15.0
 
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,
 기본 `MockBackend`와 선택적인 실제 `KcfBackend`를 제공합니다.
 
-KCF 5.6.0 실제 Backend를 포함한 DEB 생성·검증은 [Debian 패키징 가이드](docs/DEBIAN_PACKAGING.md)를 참고하십시오.
+KCF 5.6.1 실제 Backend를 포함한 DEB 생성·검증은 [Debian 패키징 가이드](docs/DEBIAN_PACKAGING.md)를 참고하십시오.
 
-## v0.14 기준
+## v0.15.0 기준
 
-현재 버전은 **v0.14** (CMake **0.14.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.
+현재 버전은 **v0.15.0** (CMake **0.15.0**)입니다. 기존 Local 기능과 함께 다음 Remote 기능을 제공합니다.
 
 - Multi-Host Discovery / Host 선택 및 metadata 기반 Remote Application / Element / Endpoint 탐색
 - Network Diagnostics: Gateway별 Route identity/session·상태·9개 Counter와 Send/Receive/Proxy Publish Hz, Skipped/s
@@ -22,25 +22,57 @@ Local 화면은 기존 Runtime 탐색, Topic Echo, Parameter Editor, Service Cal
 Remote Host를 선택하면 해당 Host의 탐색·조작 화면을 사용하며, Local Runtime 연결과
 Network 상태를 별도로 표시합니다. SystemStatus는 Local 전용입니다.
 
-Remote Control은 KCF Framework v5.4/v5.5의 공개 `RemoteControlClient`, `RemoteTopicClient`,
-TypeDescriptor Query 및 `NetworkDiagnosticsClient` API를 사용합니다. 해당 API가 포함된
-Framework로 빌드해야 합니다. Tool은 Gateway/forwarder나 Application의 장치 제어 로직을 대신하지 않습니다.
-Remote Client API가 없는 구성에서는 제공되는 API 범위의 관측 기능을 유지하며,
-Diagnostics API가 없는 구형 Network Framework는 Discovery-only, Network API도 없으면 Local-only,
-Framework를 지정하지 않으면 Mock/stub입니다.
+실제 Backend는 **Core v5.6.1 이상과 필수 공개 API**를 요구합니다. Configure에서
+`FrameworkVersion`, `PeerInfo.last_complete_snapshot`의 valid/stale/revision/endpoints 타입,
+`RemoteControlClient`, `RemoteTopicClient`, `NetworkDiagnosticsClient`를 컴파일 검사합니다.
+Core 5.6.0 및 필수 API가 없는 소스는 명확한 오류로 거부하며 구형 API로 우회하지 않습니다.
+Core를 지정하지 않은 Mock/stub 빌드는 유지합니다. Debian 패키징은 이번 릴리스 기준 **정확히 Core 5.6.1**을 요구합니다.
+Tool은 공개 API를 사용하며 Gateway/forwarder나 Application의 장치 제어 로직을 대신하지 않습니다.
+
+v0.15에서는 [Ownership / Communication Graph](docs/GRAPH.md#v015-communication-graph)를 제공합니다.
+Local Topic 등록 관계는 Metadata 기반 점선, Remote의 양쪽 검증 ACTIVE Route는 청록색 실선으로 구분하며
+어느 쪽도 Application 수신 성공을 보장하지 않습니다. Remote Workspace는 Metadata 갱신 중
+`last_complete_snapshot`을 **UPDATING / STALE 표시 전용**으로 유지하고 신규 제어를 차단합니다.
+[READY / STALE / INVALID 계약](docs/REMOTE_CONTROL.md#v015-metadata-states)을 참고하세요.
+
+### v0.15 Release 준비 검증
+
+최종 Debug 검증은 **Core v5.6.1 / Qt 6.9.3** 개발 환경에서 `build-main`을 재구성·증분 빌드했습니다.
+PeerDiscovery 재컴파일과 정적 Core/Tool 재링크를 확인했고 **CTest 22/22 PASS (92.44초)**,
+별도 **Mock/stub 6/6 PASS (4.08초)**입니다. **Virtual LAN / Qt offscreen E2E도 PASS**로,
+READY/STALE/INVALID, 선택·Subscribe Handle 유지, LOST/Session 변경, Verified Route 및
+Ownership/Communication Graph를 검증했습니다. 최초 sandbox netlink 제한에 따른 환경 준비 실패와
+격리 namespace 재실행 PASS를 구분합니다.
+
+**Ubuntu 24.04 amd64 / Release / 배포판 Qt 6.4.2**에서 Core v5.6.1 DEB 추출 SDK로
+Configure / Build / CPack 및 추출 실행 검증을 완료했습니다.
+`kcf-tools_0.15.0-1+ubuntu24.04_amd64.deb`는 **784,686 bytes**이며 SHA256은
+`1b76bd756972996b3f8901349c883c70fb399f88c584697390a1879311e9bc7b`입니다.
+[패키징 결과·SDK staging 재현 방법](docs/DEBIAN_PACKAGING.md)을 참고하세요.
+Tag/GitHub Release는 생성하지 않았습니다.
+
+실제 DEB 설치·업그레이드, 이번 Release의 실제 데스크톱 GUI·물리 LAN·ARM64 및
+Release 빌드의 전체 CTest는 **미검증**입니다. 추출 offscreen startup을 설치 검증으로 간주하지 않습니다.
+과거 Local Communication GUI 사용자 확인 PASS는 별도 이력이며 다중 관계 GUI·실물 Remote Graph는 미검증입니다.
+Historical: 앞선 버전 정합화의 관련 Backend·Network **7/7 PASS (57.17초)**,
+Mock/stub **6/6 PASS (3.84초)** 및 Core 5.6.0 Configure 거부 PASS를 보존합니다.
+기존 [Virtual LAN E2E 기록](docs/NETWORK_OBSERVATION.md#v015-snapshot-validation)과 이번 최종 회귀는 별도 실행입니다.
+이번 문서 작업에서는 빌드·회귀·패키징을 재실행하지 않았습니다.
+
+Workspace / Manifest / Launch Designer는 **Tools #3 후속 과제**이며 현재 구현 기능이 아닙니다.
 
 Historical: 2026-10-21 **Framework v5.3 / Tools v0.13 소스의 사용자 확인 물리 LAN 수동 검증**에서 Orange Pi 5+ ↔ Ubuntu VM Bridged LAN의
 실제 Qt GUI로 Discovery/Metadata, Topic 수신(약 **45.96Hz 관측**), Parameter Get/Set/Readback,
 Service Call/Response 및 Action 성공·Cancel을 확인했습니다.
-이는 v0.14 재검증이나 전체 안정성 인증이 아니며, 개별 프로그램 재시작·LAN 단절 복구와 실제 다중 Gateway 동시 제어는
+이는 v0.14/v0.15 재검증이나 전체 안정성 인증이 아니며, 개별 프로그램 재시작·LAN 단절 복구와 실제 다중 Gateway 동시 제어는
 추가 검증이 필요합니다. [물리 LAN 검증 및 제한](docs/REMOTE_CONTROL.md#물리-lan-수동-검증--사용자-확인)을 참고하십시오.
 
 [Remote Control 사용·권한 설정](docs/REMOTE_CONTROL.md),
 [Network 계약](docs/NETWORK_OBSERVATION.md#v013-network-diagnostics-계약),
 [Verified Route Graph](docs/GRAPH.md#v013-verified-network-route-graph)를 참고하십시오.
-v0.14의 실제 빌드·검증 범위와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)를 따릅니다.
+Historical: v0.14의 실제 빌드·검증 범위와 Framework 커밋 기준은 [v0.14 릴리스 노트](docs/V0_14_RELEASE_NOTES.md)를 따릅니다.
 
-## NET56 개발 연동 — 버전 0.14.0 유지
+## Historical — NET56 개발 연동 (Tools 0.14.0)
 
 현재 Framework **5.5.0 개발 작업 트리(NET56-4C/5B1 포함)**와 연동하면 Host ID 없이
 `kcf_tool --backend kcf`로 임시 Topic Observer를 시작할 수 있습니다. 공개 REMOTE Publisher를
@@ -66,7 +98,7 @@ Framework Gateway의 `--interface` NIC 이름 옵션과 다릅니다. Discovery 
 구현·검증·미검증의 구분 및 기존 이력은 [Network Observation](docs/NETWORK_OBSERVATION.md)을 참고하세요.
 NET56 개발 구현은 Framework v5.6.0 또는 새로운 Tools 릴리스 배포 완료를 뜻하지 않습니다.
 
-## Framework v5.5 호환성 검증 — 2026-10-22
+## Historical — Framework v5.5 호환성 검증 — 2026-10-22
 
 Tools 버전은 **v0.14 / 0.14.0**을 유지합니다. Framework dev
 `f184787d7d68e8e1d3adbcd27d9ee09d170893a9` (**5.5.0**)의 공개 API로 검증했습니다.
@@ -171,22 +203,48 @@ KCF 연결 빌드(`KCF_SOURCE_DIR` 설정)는 **nlohmann_json >= 3.2**의 CMake 
 Local Gateway IPC JSON 검증에 사용하며 GUI OFF인 KCF Backend 빌드에도 필요합니다.
 Framework 없는 Mock/stub 구성에는 이 조건부 의존성을 요구하지 않습니다. 이 문서 작업은 패키지를 설치하지 않습니다.
 
-```sh
-cmake -S . -B build-kcf -DKCF_SOURCE_DIR=../kss_control_framework -DKCF_TOOL_BUILD_TESTS=ON
-cmake --build build-kcf -j
-./build-kcf/kcf_tool --backend kcf
-```
-
-Mock 구성은 KCF 없이 빌드할 수 있습니다.
+저장소 루트에서 **`build-main`을 표준 개발 빌드 디렉터리**로 사용합니다.
+현재 Tools v0.15.0과 형제 저장소의 Core v5.6.1 소스를 연결하고 Debug, Qt GUI,
+테스트를 활성화합니다. 다음은 개발 VM에서 확인한 Qt **6.9.3** 구성입니다.
 
 ```sh
-cmake -S . -B build -DKCF_TOOL_BUILD_TESTS=ON
-cmake --build build -j
-./build/kcf_tool --backend mock
-ctest --test-dir build --output-on-failure
+cmake -S . -B build-main \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DKCF_SOURCE_DIR=../kss_control_framework \
+  -DKCF_TOOL_BUILD_GUI=ON \
+  -DKCF_TOOL_BUILD_TESTS=ON \
+  -DKCF_TOOL_ENABLE_PACKAGING=OFF \
+  -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
+cmake --build build-main -j2
+# GUI를 시작하지 않는 CLI 확인
+QT_QPA_PLATFORM=offscreen ./build-main/kcf_tool --help
+# 아래 GUI 명령은 데스크톱 세션에서 각각 실행합니다.
+./build-main/kcf_tool --backend mock
+./build-main/kcf_tool --backend kcf
+# Local Application만 탐색하고 Network Discovery를 끄려면:
+./build-main/kcf_tool --backend kcf --no-network
 ```
 
-현재 NET56 전체 기능은 **NET56-4C/5B1을 포함한 Framework 5.5.0 개발 소스**를
+실행 파일은 `build-main/kcf_tool`입니다. 실제 Core 연결 빌드에서도 Mock Backend를
+선택할 수 있으며, 옵션을 생략하면 기본 Backend는 Mock입니다. 실제 Local Backend는
+탐색할 Application과 동일한 UID로 실행합니다. Remote 연결의 interface 주소는
+해당 PC에 실제 존재하는 주소로 지정합니다.
+
+Core 없는 Mock/stub 전용 빌드가 필요한 경우에만 별도 `build-mock`을 사용합니다.
+표준 `build-main`의 실제 Backend 설정을 Mock 설정으로 덮어쓰지 않습니다.
+
+```sh
+cmake -S . -B build-mock \
+  -DCMAKE_BUILD_TYPE=Debug -DKCF_SOURCE_DIR= \
+  -DKCF_TOOL_BUILD_GUI=ON -DKCF_TOOL_BUILD_TESTS=ON \
+  -DKCF_TOOL_ENABLE_PACKAGING=OFF \
+  -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
+cmake --build build-mock -j2
+./build-mock/kcf_tool --backend mock
+```
+
+현재 실제 Backend는 **Core 5.6.1 이상 및 필수 API가 포함된 소스**를
 `KCF_SOURCE_DIR`로 참조합니다. 소스를 복사하지 않으며 HEAD만으로 미커밋 변경을
 식별할 수 없으므로 `git status`와 적용된 API도 확인합니다. 새 빌드 디렉터리를 사용합니다.
 초기 Diagnostics-only 빌드의 F-ND5B 기준은 위 Historical 기록으로 보존합니다.
@@ -207,21 +265,14 @@ Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고
 다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
 이전 Core를 계속 사용하며, GUI Refresh로 실행 파일이 교체되지 않습니다.
 `readlink /proc/<GUI_PID>/exe`가 `(deleted)`로 끝나면 rebuild 전 프로세스인지
-확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-v014/kcf_tool`로
+확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-main/kcf_tool`로
 비교할 수 있습니다. 구버전 Tool의 `Protocol error` 사례와 정확한 반환 경로는
 [수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 기록했습니다.
 
+전체 회귀는 운영 프로세스와 분리된 테스트 환경에서 별도로 실행합니다.
+
 ```sh
-git -C /home/kssvm/workspace/kcf/kss_control_framework rev-parse HEAD
-git -C /home/kssvm/workspace/kcf/kss_control_framework status --short
-cmake -S . -B build-v014 \
-  -DKCF_SOURCE_DIR=/home/kssvm/workspace/kcf/kss_control_framework \
-  -DKCF_TOOL_BUILD_TESTS=ON \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
-cmake --build build-v014 -j
-./build-v014/kcf_tool --backend kcf
-ctest --test-dir build-v014 --output-on-failure
+ctest --test-dir build-main --output-on-failure
 ```
 
 Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
@@ -230,6 +281,32 @@ Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
 실제 통합 테스트는 하드웨어 없이 테스트용 프로세스, SHM 및 loopback UDP를 사용합니다.
 자동 통합 테스트는 다른 KCF 프로세스가 없는 환경에서 실행하십시오.
 일반 GUI 사용 시에는 탐색할 Application을 먼저 실행합니다.
+
+### Debian 패키지 설치 후 실행과 Gateway 운영
+
+위 소스 빌드는 시스템 설치 없이 `build-main/kcf_tool`을 실행합니다.
+관리자가 호환되는 Tools DEB를 설치한 환경에서는 다음 설치 바이너리를 사용합니다.
+
+```sh
+/usr/bin/kcf_tool --help
+/usr/bin/kcf_tool --backend mock
+/usr/bin/kcf_tool --backend kcf
+```
+
+DEB 생성·설치·Qt 런타임 의존성은 [패키징 가이드](docs/DEBIAN_PACKAGING.md)를 따릅니다.
+개발용 `/opt/Qt/6.9.3` 설정과 배포판 Qt 기반 DEB 구성은 별도입니다.
+Core는 Tools 바이너리에 정적 링크되므로 Core 패키지만 교체해도 Tools가 갱신되지는 않습니다.
+
+Tools는 Gateway를 생성하거나 종료하지 않습니다. Local Gateway IPC 기본 경로는
+`/run/kcf/gateway.sock`이며 `--gateway-socket`으로 지정할 수 있습니다.
+Gateway를 운영하는 Host에서는 Application과 같은 UID의 공통 systemd 서비스를 이용하며,
+이미 실행 중인 서비스와 수동 Gateway를 중복 실행하지 않습니다. 별도 PC의 Tools에서
+원격 Host를 탐색하기 위해 로컬 Gateway를 반드시 실행할 필요는 없습니다.
+Gateway의 수동 실행·최초 계정 설정·자동 시작 승인 및 Topic/Control 허용 정책은
+Core 저장소의 `gateway/systemd/README.md`를 따릅니다. GUI 종료는 Gateway 종료가 아닙니다.
+
+과거 검증 로그와 `/tmp` 빌드 경로는 당시 기록으로 보존하며,
+현재 개발 GUI의 권장 실행 경로는 `build-main/kcf_tool`입니다.
 
 ### v0.11 당시 Framework v5.1 연동 검증 결과
 
@@ -284,7 +361,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 ### Application과 GUI 수동 실행
 
 위 빌드를 완료한 후 각 명령을 별도 터미널에서 실행합니다. 실제 Tool GUI는
-앞의 `build-v014` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
+앞의 `build-main` 구성으로 빌드하고, 화면 표시가 가능한 데스크톱 세션에서 실행합니다.
 
 ```sh
 # 터미널 1: Alpha — sensor / processor
@@ -303,7 +380,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 
 ```sh
 # 터미널 4: Tool 저장소 디렉터리에서 실행
-./build-v014/kcf_tool --backend kcf
+./build-main/kcf_tool --backend kcf
 ```
 
 Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
@@ -335,6 +412,8 @@ Framework 회귀 모두 PASS**. Tool production 코드와 KCF core 변경 없이
 
 Graph 탭은 현재 discovery 스냅샷으로 Application별 Element와 Topic 관계를 표시합니다.
 외부 Graphviz 없이 Qt QGraphicsView/QGraphicsScene을 사용합니다.
+기본 Ownership과 Communication 모드를 선택할 수 있습니다. 아래 배치는 Ownership 기준이며,
+Communication은 Element 간 Topic 방향·라벨과 Local Metadata 점선/Remote Verified 실선을 표시합니다.
 
 - 왼쪽: Application별 사각형 Element. 같은 Application 이름도 Supervisor PID/start_ticks로 구분하며 Standalone은 별도 그룹입니다.
 - 오른쪽: 작은 Topic/Parameter endpoint와 개별 Service server 노드. Publisher → Topic → Subscriber 방향으로 연결합니다.
@@ -348,16 +427,16 @@ Graph 탭은 현재 discovery 스냅샷으로 Application별 Element와 Topic �
 같은 이름의 Topic/Parameter는 하나의 논리 채널 노드로 묶되 각 discovery registration의
 관계는 유지합니다. 고정된 두 열에 identity/이름 순서로 배치하며 force-directed 배치는
 사용하지 않습니다. 실제 통신 성공 여부, 데이터 전달량, 미발견 client 관계는 추정하지 않습니다.
-Remote metadata와 실제 Diagnostics Route 관측은 아래 v0.14 Network 기능으로 제공합니다. [Graph 구현 및 검증](docs/GRAPH.md)을 참고하십시오.
+Remote metadata와 실제 Diagnostics Route 관측은 아래 v0.15 Network 기능으로 제공합니다. [Graph 구현 및 검증](docs/GRAPH.md)을 참고하십시오.
 
-## v0.14 Network 관측
+## v0.15 Network 관측
 
-KCF v5.4 공개 Diagnostics API가 있는 Framework로 빌드하면, 기존 Discovery와 함께
+Core >=5.6.1 필수 API 구성에서는 기존 Discovery와 함께
 ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 조회합니다.
-구형 Network Framework에서는 기존 Remote Discovery-only 기능을 유지합니다.
+Diagnostics 미지원 Gateway는 미지원 상태로 구분하며 실제 Route를 추정하지 않습니다.
 
 ```sh
-./build-v014/kcf_tool --backend kcf --network-interface 192.168.1.10
+./build-main/kcf_tool --backend kcf --network-interface 192.168.1.10
 # loopback 테스트: --network-interface 127.0.0.1 --network-port 37651
 # Local 전용: --backend kcf --no-network
 ```
@@ -377,7 +456,7 @@ ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 
   최신성 조건을 다시 검사합니다.
 - Tool은 forwarding/Gateway가 아닙니다. 최신 Framework Remote Client API로 빌드하면
   [Remote Control / Multi-Host UI](docs/REMOTE_CONTROL.md)의 Get/Set/Call/Goal/Cancel 및 Topic 구독을 제공합니다.
-  구형 Framework의 관측 전용 호환성은 유지합니다.
+  구형 Core 소스의 관측 전용 fallback은 v0.15 Configure에서 허용하지 않습니다.
 
 Diagnostics 계약과 과거 자동 검증은 [Network 관측](docs/NETWORK_OBSERVATION.md),
 현재 Remote 조작과 사용자 물리 LAN 검증은 [Remote Control](docs/REMOTE_CONTROL.md)을 참고하십시오.

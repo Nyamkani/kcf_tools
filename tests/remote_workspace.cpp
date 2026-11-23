@@ -18,9 +18,70 @@ RemoteEndpoint Endpoint(KcfBackend& b,const std::string& kind,int host,const std
 void Count(DataSnapshot& v,const std::string& text){for(auto& f:v.fields)if(f.name=="count"){f.value=text;return;}assert(false);}
 std::string Count(const DataSnapshot& v){for(const auto& f:v.fields)if(f.name=="count")return f.value;return {};}
 int main(int argc,char** argv){QApplication app(argc,argv);application=&app;auto backend=std::make_unique<KcfBackend>();auto* b=backend.get();assert(!b->StartNetwork({"10.203.0.2",37651,"63000000000000000000000000000000"}));MainWindow window(std::move(backend));window.show();std::cout<<"{\"ready\":1}"<<std::endl;
-    RemoteEndpoint old;std::string op;
+    RemoteEndpoint old, retained_topic, retained_parameter;RemoteHost before;
+    QString selected_key;std::uint64_t retained_handle=0,received_before=0;
+    const auto list=[&](int page){return window.findChild<QListWidget*>(QString("remoteEndpoints%1").arg(page));};
+    const auto button=[&](const QString& text){for(auto* v:window.findChildren<QPushButton*>())if(v->text()==text)return v;assert(false);return static_cast<QPushButton*>(nullptr);};
+    const auto host=[&]{for(const auto& h:b->GetNetworkSnapshot().hosts)if(h.id==retained_topic.identity.host_id)return h;return RemoteHost{};};
+    const auto selected=[&]{return list(2)->currentItem()?list(2)->currentItem()->data(Qt::UserRole).toString():QString{};};
+    const auto ready_label=[&]{for(auto* v:window.findChildren<QLabel*>())if(v->text().startsWith("READY\n")&&v->text().contains(QString::fromStdString(retained_topic.id)))return true;return false;};
+    const auto activity=[&]{RemoteCommand c;c.operation=RemoteOperation::Poll;return Request(*b,c).activities;};
+    std::string op;
     while(std::getline(std::cin,op)&&op!="QUIT"){
-        if(op=="CHECK"){
+        if(op=="SNAPSHOT_SELECT"){
+            retained_topic=Endpoint(*b,"T",2,"/virtual/shared/topic");retained_parameter=Endpoint(*b,"P",2);before=host();
+            auto* hosts=window.findChild<QComboBox*>("remoteHostSelector");
+            Wait([&]{return hosts->findData(QString::fromStdString(before.id))>=0;});hosts->setCurrentIndex(hosts->findData(QString::fromStdString(before.id)));
+            Wait([&]{for(int row=0;row<list(2)->count();++row)if(list(2)->item(row)->text().contains(QString::fromStdString(retained_topic.id))){list(2)->setCurrentRow(row);return true;}return false;});
+            list(3)->setCurrentRow(0);selected_key=selected();Wait(ready_label);
+            assert(before.metadata_ready&&before.last_complete_snapshot.valid&&!before.last_complete_snapshot.stale);
+            std::cout<<"{\"ready_selection\":1,\"revision\":\""<<before.revision<<"\",\"session\":\""<<before.session<<"\"}"<<std::endl;
+        }else if(op=="SNAPSHOT_SUBSCRIBE"){
+            Wait([&]{return button("Subscribe")->isEnabled();});button("Subscribe")->click();
+            Wait([&]{for(const auto& a:activity())if(a.topic&&a.endpoint.id==retained_topic.id&&!a.terminal&&a.received_packets){retained_handle=a.handle;received_before=a.received_packets;return true;}return false;});
+            std::cout<<"{\"handle\":"<<retained_handle<<",\"received\":"<<received_before<<"}"<<std::endl;
+        }else if(op=="SNAPSHOT_UPDATING"){
+            Wait([&]{auto h=host();return h.revision!=before.revision&&!h.metadata_ready&&list(2)->toolTip().contains("STALE");});
+            auto h=host();assert(h.id==before.id&&h.boot_id==before.boot_id&&h.session==before.session&&h.state=="ONLINE");
+            assert(h.endpoints.empty()&&h.last_complete_snapshot.valid&&h.last_complete_snapshot.stale&&h.last_complete_snapshot.revision==before.revision);
+            assert(selected()==selected_key&&list(2)->currentItem()->text().contains("STALE"));
+            assert(!button("Subscribe")->isEnabled()&&!button("Get / Revert")->isEnabled());
+            // Bypass disabled widgets to exercise the UI request gate as well.
+            QMetaObject::invokeMethod(button("Get / Revert"),"clicked",Qt::DirectConnection);
+            assert(window.findChild<QLabel*>("remoteStatus3")->text().contains("Request blocked"));
+            RemoteCommand c;c.endpoint=retained_topic;c.operation=RemoteOperation::Subscribe;auto sub=Request(*b,c);assert(sub.error&&!sub.handle);
+            c.endpoint=retained_parameter;c.operation=RemoteOperation::Get;assert(Request(*b,c).error);
+            bool kept=false;for(const auto& a:activity())if(a.handle==retained_handle)kept=true;assert(kept&&button("Unsubscribe")->isEnabled());
+            std::cout<<"{\"stale_selection\":1,\"new_requests_blocked\":1,\"retained_handle\":"<<retained_handle<<"}"<<std::endl;
+        }else if(op=="SNAPSHOT_COMPLETE"){
+            Wait([&]{auto h=host();return h.metadata_ready&&h.revision!=before.revision&&ready_label();});
+            auto h=host();assert(h.boot_id==before.boot_id&&h.session==before.session&&selected()==selected_key);
+            assert(h.last_complete_snapshot.valid&&!h.last_complete_snapshot.stale&&h.last_complete_snapshot.revision==h.revision);
+            // Measure after completion, so packets received before the revision
+            // change cannot satisfy the continued-reception assertion.
+            bool kept=false;for(const auto& a:activity())if(a.handle==retained_handle){assert(!a.terminal);received_before=a.received_packets;kept=true;}assert(kept);
+            Wait([&]{for(const auto& a:activity())if(a.handle==retained_handle)return !a.terminal&&a.received_packets>received_before;return false;});
+            button("Unsubscribe")->click();Wait([&]{return button("Subscribe")->isEnabled();});
+            before=h;std::cout<<"{\"atomic_complete\":1,\"selection_retained\":1,\"same_handle_received\":1}"<<std::endl;
+        }else if(op=="SNAPSHOT_REPLACED"){
+            auto next=Endpoint(*b,"T",2,"/virtual/shared/topic");Wait([&]{next=Endpoint(*b,"T",2,"/virtual/shared/topic");return next.identity.registration_id!=retained_topic.identity.registration_id;});
+            assert(next.identity.pid==retained_topic.identity.pid&&next.identity.start_ticks==retained_topic.identity.start_ticks);
+            Wait([&]{return selected().isEmpty();});assert(!button("Subscribe")->isEnabled());
+            std::cout<<"{\"registration_changed\":1,\"selection_invalidated\":1}"<<std::endl;
+        }else if(op=="SNAPSHOT_REMOVED"){
+            Wait([&]{auto h=host();if(!h.metadata_ready)return false;for(const auto& e:h.endpoints)if(e.name==retained_topic.name)return false;return selected().isEmpty();});
+            assert(!button("Subscribe")->isEnabled());std::cout<<"{\"deleted_selection_invalidated\":1}"<<std::endl;
+        }else if(op=="SNAPSHOT_EMPTY"){
+            Wait([&]{auto h=host();return h.metadata_ready&&h.endpoints.empty()&&h.last_complete_snapshot.valid&&h.last_complete_snapshot.endpoints.empty()&&list(2)->count()==0&&list(3)->count()==0;});
+            assert(selected().isEmpty());std::cout<<"{\"valid_empty\":1}"<<std::endl;
+        }else if(op=="SNAPSHOT_LOST"){
+            Wait([&]{return host().state=="LOST"&&selected().isEmpty();});assert(!host().last_complete_snapshot.valid&&list(2)->count()==0);
+            std::cout<<"{\"lost_selection_invalidated\":1}"<<std::endl;
+        }else if(op=="SNAPSHOT_SESSION"){
+            Wait([&]{return host().session!=before.session&&host().metadata_ready&&selected().isEmpty();});
+            RemoteCommand c;c.operation=RemoteOperation::Subscribe;c.endpoint=retained_topic;assert(Request(*b,c).error==-ESTALE);
+            std::cout<<"{\"session_selection_invalidated\":1}"<<std::endl;
+        }else if(op=="CHECK"){
             auto p=Endpoint(*b,"P",1);auto service=Endpoint(*b,"S",1);auto action=Endpoint(*b,"A",1);old=p;
             RemoteCommand c;c.endpoint=p;c.operation=RemoteOperation::Get;auto get=Request(*b,c);assert(!get.error&&get.value.fields.size()==3);
             c.operation=RemoteOperation::Set;c.input=get.value;Count(c.input,"123");auto set=Request(*b,c);assert(!set.error&&set.response_received&&!set.execution_unknown&&!set.readback_error&&Count(set.value)=="123");
