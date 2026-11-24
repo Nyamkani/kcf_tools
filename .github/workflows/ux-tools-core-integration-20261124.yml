@@ -1,0 +1,35 @@
+name: KCF Tools with combined Core UX validation
+on:
+  push:
+    branches: [integration/ux-tools-core-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-real:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout combined KCF Core
+        uses: actions/checkout@v4
+        with:
+          repository: Nyamkani/kss_control_framework
+          ref: integration/ux-20261124
+          path: core
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qt6-base-dev nlohmann-json3-dev
+      - name: Configure
+        run: cmake -S . -B build -DKCF_TOOL_BUILD_GUI=ON -DKCF_TOOL_BUILD_TESTS=ON -DKCF_SOURCE_DIR="${GITHUB_WORKSPACE}/core" -DCMAKE_BUILD_TYPE=Debug
+      - name: Build Tools real backend and UX tests
+        run: |
+          cmake --build build --parallel 4 --target \
+            kcf_tool kcf_tool_topic_plot_history kcf_tool_smoke \
+            kcf_tool_real_backend kcf_tool_real_smoke \
+            kcf_tool_value_codec kcf_tool_network_backend
+      - name: Local history and GUI smoke
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^(kcf_tool_topic_plot_history|kcf_tool_smoke)$' --output-on-failure
+      - name: Core-linked real backend, numeric codec and network regression
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^(kcf_tool_real_backend|kcf_tool_real_backend_depth4|kcf_tool_real_smoke|kcf_tool_real_smoke_depth4|kcf_tool_value_codec|kcf_tool_network_backend)$' --output-on-failure
