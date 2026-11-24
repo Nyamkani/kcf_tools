@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     window.show();
     QTimer::singleShot(0, &window, [&] {
         Check(window.findChild<QLabel*>("backendStatus")->text() == "Backend: Mock", "mock backend label");
-        Check(window.findChild<QLabel*>("connectionStatus")->text() == "Connection: Connected", "mock connection label");
+        Check(window.findChild<QLabel*>("connectionStatus")->text() == "Local Runtime: Connected", "mock connection label");
         auto* tabs = window.findChild<QTabWidget*>();
         Check(window.isVisible() && tabs->count() == 8, "window and eight tabs");
         const QStringList titles{"Applications", "Elements", "Topics", "Parameters", "Launch", "Services", "Graph"};
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
         kcf_tool::MainWindow disconnected(std::make_unique<kcf_tool::KcfBackend>(), "KCF");
         disconnected.show();
         Check(disconnected.findChild<QLabel*>("backendStatus")->text() == "Backend: KCF", "KCF backend label");
-        Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Connection: Disconnected", "KCF connection label");
+        Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Local Runtime: None discovered", "KCF connection label");
         Check(disconnected.findChild<QTabWidget*>()->count() == 8, "KCF retains tabs");
         for (auto* list : disconnected.findChildren<QListWidget*>())
             Check(list->count() == 0, "KCF GUI has no fake data");
