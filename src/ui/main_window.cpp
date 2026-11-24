@@ -367,11 +367,11 @@ void MainWindow::Refresh() {
     const auto connection = backend_->GetConnectionState();
     switch (connection) {
     case BackendConnectionState::CONNECTED:
-        connection_status_->setText("Connection: Connected"); break;
+        connection_status_->setText("Local Runtime: Connected"); break;
     case BackendConnectionState::DISCONNECTED:
-        connection_status_->setText("Connection: Disconnected"); break;
+        connection_status_->setText("Local Runtime: None discovered"); break;
     case BackendConnectionState::ERROR:
-        connection_status_->setText("Connection: Error"); break;
+        connection_status_->setText("Local Runtime: Error"); break;
     }
     if (result != 0 || connection != BackendConnectionState::CONNECTED) {
         // Discard stale Local data; Network discovery has an independent lifetime.
@@ -394,7 +394,7 @@ void MainWindow::Refresh() {
         UpdateExplorer();
         discovery_refreshed_=true;
         statusBar()->showMessage("Last refresh: " +
-            (result != 0 ? ErrorText(result) : QStringLiteral("Backend unavailable")));
+            (result != 0 ? ErrorText(result) : QStringLiteral("No Local Runtime discovered (Remote Network is independent)")));
         return;
     }
     const auto application = backend_->GetApplicationInfo();
