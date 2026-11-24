@@ -82,6 +82,10 @@ if(KCF_TOOL_BUILD_GUI)
 endif()
 if(KCF_TOOL_BUILD_TESTS)
     enable_testing()
+    add_executable(kcf_tool_topic_plot_history tests/topic_plot_history.cpp)
+    target_include_directories(kcf_tool_topic_plot_history PRIVATE include)
+    target_compile_options(kcf_tool_topic_plot_history PRIVATE -UNDEBUG -Wall -Wextra -Wpedantic)
+    add_test(NAME kcf_tool_topic_plot_history COMMAND kcf_tool_topic_plot_history)
     # Preserve Mock and disconnected-stub regression coverage without KCF.
     add_executable(kcf_tool_backend_contract tests/backend_contract.cpp
         src/backend/mock_backend.cpp src/backend/kcf_backend_stub.cpp)

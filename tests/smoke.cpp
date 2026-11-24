@@ -10,6 +10,7 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QTableWidget>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QThread>
 #include <cerrno>
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
     window.show();
     QTimer::singleShot(0, &window, [&] {
         Check(window.findChild<QLabel*>("backendStatus")->text() == "Backend: Mock", "mock backend label");
-        Check(window.findChild<QLabel*>("connectionStatus")->text() == "Connection: Connected", "mock connection label");
+        Check(window.findChild<QLabel*>("connectionStatus")->text() == "Local Runtime: Connected", "mock connection label");
         auto* tabs = window.findChild<QTabWidget*>();
         Check(window.isVisible() && tabs->count() == 8, "window and eight tabs");
         const QStringList titles{"Applications", "Elements", "Topics", "Parameters", "Launch", "Services", "Graph"};
@@ -102,6 +103,13 @@ int main(int argc, char** argv) {
         Check(window.findChild<QLabel*>("topicFrequency")->text()=="Measuring...", "echo starts measuring");
         Check(timer->isActive() && timer->interval() == 100, "100 ms timer");
         Check(fields->rowCount() == 6 && fields->item(1,2)->text() == "2.25", "mock scalar");
+        auto* plot_field=window.findChild<QComboBox*>("topicPlotField");
+        auto* plot_export=window.findChild<QPushButton*>("topicPlotExport");
+        auto* plot_summary=window.findChild<QLabel*>("topicPlotSummary");
+        Check(plot_field && plot_field->count()>0 && plot_export && plot_export->isEnabled(),
+              "local Echo numeric plot and export ready");
+        Check(plot_summary && plot_summary->text().contains("Observed=1"),
+              "local Echo records only observed snapshots");
         Check(fields->item(5,0)->text() == "values[3]" && fields->item(5,2)->text() == "8", "mock array");
         auto seq = fields->item(0,2)->text().toULongLong(); wait();
         Check(fields->item(0,2)->text().toULongLong() > seq, "poll updates");
@@ -118,7 +126,7 @@ int main(int argc, char** argv) {
         kcf_tool::MainWindow disconnected(std::make_unique<kcf_tool::KcfBackend>(), "KCF");
         disconnected.show();
         Check(disconnected.findChild<QLabel*>("backendStatus")->text() == "Backend: KCF", "KCF backend label");
-        Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Connection: Disconnected", "KCF connection label");
+        Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Local Runtime: None discovered", "KCF connection label");
         Check(disconnected.findChild<QTabWidget*>()->count() == 8, "KCF retains tabs");
         for (auto* list : disconnected.findChildren<QListWidget*>())
             Check(list->count() == 0, "KCF GUI has no fake data");
