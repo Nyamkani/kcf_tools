@@ -65,7 +65,7 @@ int main(int argc,char** argv) {
         return false;
     };
     wait([&]{refresh->click(); return select("/topic","PUBLISHER") && start->isEnabled() && topics->count()==3 && window.findChild<QListWidget*>("parametersList")->count()==2;});
-    assert(connection->text()=="Connection: Connected");
+    assert(connection->text()=="Local Runtime: Connected");
     auto* graph=dynamic_cast<kcf_tool::GraphWidget*>(window.findChild<QWidget*>("graphTab"));
     assert(graph && graph->Model().nodes.size()==3 && graph->Model().edges.size()==3);
     for(const auto& edge:graph->Model().edges)assert(edge.endpoint.runtime.pid==fixture.processId());
@@ -138,7 +138,7 @@ int main(int argc,char** argv) {
     assert(status->text().startsWith("Echo error:"));
     assert(frequency->text()=="N/A");
     assert(window.statusBar()->currentMessage().startsWith("Echo error:"));
-    refresh->click(); assert(connection->text()=="Connection: Disconnected");
+    refresh->click(); assert(connection->text()=="Local Runtime: None discovered");
     assert(topics->count()==0 && fields->rowCount()==0 && !start->isEnabled());
     assert(graph->Model().nodes.empty() && graph->Model().edges.empty());
     // Unlink while the owner stays alive: no refresh and no stale mapped value.
