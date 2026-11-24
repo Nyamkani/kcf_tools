@@ -68,7 +68,7 @@ public:
     // CSV exports only retained, actually observed samples. The sequence gap
     // count is an observation gap, NOT a network packet loss estimate.
     bool WriteCsv(std::ostream& stream)const {
-        stream<<"source,type_id,observed_steady_us,observed_elapsed_ms,sequence,unobserved_sequence_steps";
+        stream<<"source,type_id,observed_steady_us,observed_elapsed_ms,transport_sequence,unobserved_sequence_steps";
         for(const auto& name:fields_){stream<<',';Quote(stream,name);}
         stream<<'\n';
         if(records_.empty())return static_cast<bool>(stream);
