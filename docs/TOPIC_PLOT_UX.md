@@ -11,9 +11,9 @@ This implementation records only latest snapshots that the Local Echo UI actuall
 - Stop Echo retains the existing plot; switching Topic or restarting Echo resets history. Type ID/schema or sequence generation change clears the previous segment.
 
 ## CSV columns
-`source,type_id,observed_steady_us,observed_elapsed_ms,sequence,unobserved_sequence_steps,<numeric-fields>`
+`source,type_id,observed_steady_us,observed_elapsed_ms,transport_sequence,unobserved_sequence_steps,<numeric-fields>`
 
-- observed_steady_us uses the observer-side steady_clock. It is not synchronized with remote devices and cannot establish end-to-end transport latency.
+- transport_sequence is the KCF transport publish counter; a payload field named sequence remains separate.\n- observed_steady_us uses the observer-side steady_clock. It is not synchronized with remote devices and cannot establish end-to-end transport latency.
 - observed_elapsed_ms is relative to the first currently retained record. If the ring evicts older records, CSV relative time restarts from the first retained one.
 - source identifies Local Runtime PID/start_ticks and endpoint registration; no Host ID or remote session inference.
 - numeric rendering parses values as double; very large integer fields may lose display precision.
@@ -24,4 +24,4 @@ This implementation records only latest snapshots that the Local Echo UI actuall
 - Multi-Topic/multi-field plot, persistent recorder and worker-thread file writes, exact sample-count semantics, memory/performance caps under prolonged load.
 - Actual ARM64/UGV02, remote reconnect, and combined KCF Core tests.
 
-Status: initial code and CI tests pending. Draft; do not merge as fully implemented Tools #4.
+Status: CI and Ubuntu VM Local Plot/CSV smoke validation passed; further remote and ARM64 validation pending. Draft; do not merge as fully implemented Tools #4.
