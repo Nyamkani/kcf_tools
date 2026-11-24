@@ -33,6 +33,7 @@ int main() {
     std::ostringstream csv;
     assert(history.WriteCsv(csv));
     assert(csv.str().find("unobserved_sequence_steps")!=std::string::npos);
+    assert(csv.str().find("observed_elapsed_ms,transport_sequence,unobserved_sequence_steps,")!=std::string::npos);
     assert(csv.str().find("2.75")!=std::string::npos);
     assert(csv.str().find("100,0")!=std::string::npos);
     d.sequence=3;
