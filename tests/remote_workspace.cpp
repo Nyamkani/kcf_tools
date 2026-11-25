@@ -9,6 +9,7 @@
 #include <QTabWidget>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <thread>
 using namespace kcf_tool;using namespace std::chrono_literals;
 QApplication* application;
@@ -63,6 +64,21 @@ int main(int argc,char** argv){QApplication app(argc,argv);application=&app;auto
                     remote_status->text().contains(QString("Sender route=%1").arg(route->route_id));
             }
             assert(matched);
+            // Export the actually decoded subscription samples through the same
+            // model used by the GUI. CSV content is not synthesized from counters.
+            TopicPlotHistory captured;
+            captured.Reset(retained_topic.name,retained_topic.value_type.type_id);
+            Wait([&]{for(const auto& a:activity())if(a.handle==retained_handle&&a.topic&&a.has_value){
+                if(captured.Observe(a.feedback,TopicPlotHistory::Clock::now())==
+                   TopicPlotHistory::ObserveResult::RECORDED)
+                    return captured.Records().size()>=2;
+                }return false;});
+            std::ostringstream output;
+            assert(captured.WriteCsv(output));
+            const auto csv=output.str();
+            assert(csv.find("observed_elapsed_ms,transport_sequence,unobserved_sequence_steps")!=std::string::npos);
+            assert(csv.find("count")!=std::string::npos);
+            assert(csv.find("\\n")!=std::string::npos);
             std::cout<<"{\"handle\":"<<retained_handle<<",\"received\":"<<received_before
                      <<",\"remote_plot\":1,\"csv_ready\":1,\"sender_route_verified\":1}"<<std::endl;
         }else if(op=="SNAPSHOT_UPDATING"){
