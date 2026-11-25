@@ -1,22 +1,42 @@
 # KCF Tools — v0.16.0
 
-Linux C++17 / Qt6 Widgets 기반 KCF GUI 도구입니다.
+Linux C++17 / Qt6 Widgets 기반 KCF 모니터링·원격 상호작용 GUI입니다.
+Core의 공개 API와 TypeDescriptor를 재사용하며 Tool 자체가 Gateway·장치 제어기 역할을 수행하지 않습니다.
 
-## 최신 Release
+## 현재 Release 및 실행 (2026-11-26)
 
-- **Tools:** v0.16.0
-- **Release 빌드 기준:** KCF Core v5.6.2
-- **실행 파일:** `kcf_tools`
-- **패키지 기본 Backend:** `kcf` (Real)
-- **Mock 실행:** `kcf_tools --backend mock`
-- **지원 패키지:** Ubuntu 24.04 / 26.04, AMD64 / ARM64
+- **Tools v0.16.0:** [GitHub Pre-release](https://github.com/Nyamkani/kcf_tools/releases/tag/v0.16.0)
+  ([Release Workflow SUCCESS](https://github.com/Nyamkani/kcf_tools/actions/runs/45687843517)).
+- **정적 링크한 Core:** [KCF Core v5.6.2](https://github.com/Nyamkani/kss_control_framework/releases/tag/v5.6.2).
+  Tools Release의 CI/CD는 Core `v5.6.2` 태그를 참조합니다.
+- **지원 패키지:** Ubuntu 24.04/26.04 × AMD64/ARM64 네이티브 DEB + `SHA256SUMS`.
+  패키지 빌드 성공은 모든 환경의 실제 설치·GUI 실물 검증과 구분합니다.
+- **설치 바이너리:** `/usr/bin/kcf_tools` (`kcf_tools`). 패키지 기본 Backend는 `kcf`(Real),
+  `kcf_tools --backend mock`으로 Mock을 명시적으로 실행할 수 있습니다.
+- **소스 개발 빌드:** CMake target은 `kcf_tool`, 생성 실행 파일은 `build-main/kcf_tools`.
+  패키징을 끈 개발 빌드의 기본 Backend는 `mock`입니다. `--backend kcf`를 명시하세요.
 
-이번 버전에서는 Local/Remote Topic Plot, CSV Export,
-Remote Workspace 개선, 실행 파일 명칭 및 CI/CD 배포 구성을
-정리했습니다.
+## v0.16.0 주요 기능
 
-자세한 변경 사항과 검증 한계는
-[Release Notes](docs/releases/v0.16.0.md)를 참고하세요.
+- Local Topic Echo의 숫자 scalar/fixed-array 필드 Plot, bounded history 및 CSV 내보내기.
+- Remote Topic Subscribe와 Plot/CSV 연동, Host/Route/세대 변경·STALE 표시 및 관측 구간 구분.
+- Ownership / Communication Graph, 검증된 ACTIVE Network Route와 Remote Workspace 유지.
+- Parameter Get/Set/Readback, Service Call, Action Goal/Feedback/Result/Cancel 등 기존 기능 유지.
+- 관측한 최신 샘플을 표시·기록하며 모든 원본 Publisher 샘플의 유실 없는 기록을 보장하지 않습니다.
+
+## 검증 범위와 후속 작업
+
+- Real Backend/Qt offscreen, Virtual LAN·Plot/CSV 회귀 및 Ubuntu 네 환경 Release 패키지 CI/CD 검증.
+  Virtual LAN E2E는 GitHub runner의 namespace 지원 여부에 따라 SKIP될 수 있으며
+  결과를 실제 Wi-Fi/OPI5+ 성능 검증으로 간주하지 않습니다.
+- 기존 OPI5+ / UGV02 실물 Remote 수신 기록은 구버전 검증 이력입니다.
+  v0.16.0 DEB의 실물 Plot/CSV·장시간 다중 Topic·메모리/CPU 성능은 추가 검증이 필요합니다.
+- Gateway Discovery 재연결 지연은 [Core #6](https://github.com/Nyamkani/kss_control_framework/issues/6),
+  Plot/기록 잔여 수용 기준은 [Tools #4](https://github.com/Nyamkani/kcf_tools/issues/4),
+  Workspace/Launch Designer는 [Tools #3](https://github.com/Nyamkani/kcf_tools/issues/3)에서 추적합니다.
+- 변경 이력은 [Changelog](Changelog.md), 상세는
+  [v0.16.0 Release Notes](docs/releases/v0.16.0.md)를 참조하세요.
+- 이번 README/Changelog 변경은 문서 전용으로 기존 CI/CD/Release 자산을 변경하지 않습니다.
 
 ---
 
@@ -228,7 +248,7 @@ Local Gateway IPC JSON 검증에 사용하며 GUI OFF인 KCF Backend 빌드에�
 Framework 없는 Mock/stub 구성에는 이 조건부 의존성을 요구하지 않습니다. 이 문서 작업은 패키지를 설치하지 않습니다.
 
 저장소 루트에서 **`build-main`을 표준 개발 빌드 디렉터리**로 사용합니다.
-현재 Tools v0.15.0과 형제 저장소의 Core v5.6.1 소스를 연결하고 Debug, Qt GUI,
+현재 Tools v0.16.0과 형제 저장소의 Core v5.6.2 소스를 연결하고 Debug, Qt GUI,
 테스트를 활성화합니다. 다음은 개발 VM에서 확인한 Qt **6.9.3** 구성입니다.
 
 ```sh
@@ -242,15 +262,15 @@ cmake -S . -B build-main \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
 cmake --build build-main -j2
 # GUI를 시작하지 않는 CLI 확인
-QT_QPA_PLATFORM=offscreen ./build-main/kcf_tool --help
+QT_QPA_PLATFORM=offscreen ./build-main/kcf_tools --help
 # 아래 GUI 명령은 데스크톱 세션에서 각각 실행합니다.
-./build-main/kcf_tool --backend mock
-./build-main/kcf_tool --backend kcf
+./build-main/kcf_tools --backend mock
+./build-main/kcf_tools --backend kcf
 # Local Application만 탐색하고 Network Discovery를 끄려면:
-./build-main/kcf_tool --backend kcf --no-network
+./build-main/kcf_tools --backend kcf --no-network
 ```
 
-실행 파일은 `build-main/kcf_tool`입니다. 실제 Core 연결 빌드에서도 Mock Backend를
+실행 파일은 `build-main/kcf_tools`입니다. 실제 Core 연결 빌드에서도 Mock Backend를
 선택할 수 있으며, 옵션을 생략하면 기본 Backend는 Mock입니다. 실제 Local Backend는
 탐색할 Application과 동일한 UID로 실행합니다. Remote 연결의 interface 주소는
 해당 PC에 실제 존재하는 주소로 지정합니다.
@@ -265,10 +285,10 @@ cmake -S . -B build-mock \
   -DKCF_TOOL_ENABLE_PACKAGING=OFF \
   -DCMAKE_PREFIX_PATH=/opt/Qt/6.9.3/gcc_64
 cmake --build build-mock -j2
-./build-mock/kcf_tool --backend mock
+./build-mock/kcf_tools --backend mock
 ```
 
-현재 실제 Backend는 **Core 5.6.1 이상 및 필수 API가 포함된 소스**를
+현재 실제 Backend는 **Core 5.6.2 이상 및 필수 API가 포함된 소스**를
 `KCF_SOURCE_DIR`로 참조합니다. 소스를 복사하지 않으며 HEAD만으로 미커밋 변경을
 식별할 수 없으므로 `git status`와 적용된 API도 확인합니다. 새 빌드 디렉터리를 사용합니다.
 초기 Diagnostics-only 빌드의 F-ND5B 기준은 위 Historical 기록으로 보존합니다.
@@ -289,7 +309,7 @@ Framework를 교체한 뒤에는 **실행 중인 Tool GUI도 모두 종료하고
 다시 실행**해야 합니다. 같은 경로의 파일을 rebuild해도 이미 실행 중인 프로세스는
 이전 Core를 계속 사용하며, GUI Refresh로 실행 파일이 교체되지 않습니다.
 `readlink /proc/<GUI_PID>/exe`가 `(deleted)`로 끝나면 rebuild 전 프로세스인지
-확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-main/kcf_tool`로
+확인하십시오. 실제 실행 파일은 `sha256sum /proc/<GUI_PID>/exe build-main/kcf_tools`로
 비교할 수 있습니다. 구버전 Tool의 `Protocol error` 사례와 정확한 반환 경로는
 [수동 재연결 진단](docs/V51_MANUAL_RECONNECT_DIAGNOSIS.md)에 기록했습니다.
 
@@ -308,13 +328,14 @@ Qt가 기본 검색 경로에 있으면 `CMAKE_PREFIX_PATH`는 생략합니다.
 
 ### Debian 패키지 설치 후 실행과 Gateway 운영
 
-위 소스 빌드는 시스템 설치 없이 `build-main/kcf_tool`을 실행합니다.
-관리자가 호환되는 Tools DEB를 설치한 환경에서는 다음 설치 바이너리를 사용합니다.
+위 소스 빌드는 시스템 설치 없이 `build-main/kcf_tools`를 실행합니다.
+관리자가 v0.16.0 Tools DEB를 설치한 환경에서는 다음 설치 바이너리를 사용합니다.
+패키지 기본 Backend는 Real KCF이며 개발용 비패키징 빌드의 기본값(Mock)과 다릅니다.
 
 ```sh
-/usr/bin/kcf_tool --help
-/usr/bin/kcf_tool --backend mock
-/usr/bin/kcf_tool --backend kcf
+/usr/bin/kcf_tools --help
+/usr/bin/kcf_tools --backend mock
+/usr/bin/kcf_tools --backend kcf
 ```
 
 DEB 생성·설치·Qt 런타임 의존성은 [패키징 가이드](docs/DEBIAN_PACKAGING.md)를 따릅니다.
@@ -330,7 +351,7 @@ Gateway의 수동 실행·최초 계정 설정·자동 시작 승인 및 Topic/C
 Core 저장소의 `gateway/systemd/README.md`를 따릅니다. GUI 종료는 Gateway 종료가 아닙니다.
 
 과거 검증 로그와 `/tmp` 빌드 경로는 당시 기록으로 보존하며,
-현재 개발 GUI의 권장 실행 경로는 `build-main/kcf_tool`입니다.
+현재 개발 GUI의 권장 실행 경로는 `build-main/kcf_tools`입니다.
 
 ### v0.11 당시 Framework v5.1 연동 검증 결과
 
@@ -404,7 +425,7 @@ CTest가 두 Application과 Standalone을 실행하고 Qt offscreen에서 실제
 
 ```sh
 # 터미널 4: Tool 저장소 디렉터리에서 실행
-./build-main/kcf_tool --backend kcf
+./build-main/kcf_tools --backend kcf
 ```
 
 Applications에서 Refresh하면 `sensor_suite`, `control_suite`, `Standalone`
@@ -455,12 +476,12 @@ Remote metadata와 실제 Diagnostics Route 관측은 아래 v0.15 Network 기�
 
 ## v0.15 Network 관측
 
-Core >=5.6.1 필수 API 구성에서는 기존 Discovery와 함께
+현행 소스 Core >=5.6.2 필수 API 구성에서는 기존 Discovery와 함께
 ONLINE·호환 가능·NETWORK_DIAGNOSTICS 지원 Gateway의 실제 Snapshot을 조회합니다.
 Diagnostics 미지원 Gateway는 미지원 상태로 구분하며 실제 Route를 추정하지 않습니다.
 
 ```sh
-./build-main/kcf_tool --backend kcf --network-interface 192.168.1.10
+./build-main/kcf_tools --backend kcf --network-interface 192.168.1.10
 # loopback 테스트: --network-interface 127.0.0.1 --network-port 37651
 # Local 전용: --backend kcf --no-network
 ```

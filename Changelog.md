@@ -3,6 +3,29 @@
 KCF Tool과 KSS Control Framework의 단계별 누적 작업 요약입니다.
 개별 작업일을 소급 지정하지 않고 기존 단계별 이력은 진행 순서대로 보존합니다. 최신 버전 요약은 상단에 구분합니다.
 
+## v0.16.0 — Local/Remote Topic Plot·CSV / Core v5.6.2 (2026-11-26)
+
+- **배포:** [KCF Tools v0.16.0 Pre-release](https://github.com/Nyamkani/kcf_tools/releases/tag/v0.16.0),
+  태그 대상 `273df9cba8e8794d08cb016ab5692446222661b3`,
+  [Release Workflow SUCCESS](https://github.com/Nyamkani/kcf_tools/actions/runs/45687843517).
+- **통합:** [PR #6](https://github.com/Nyamkani/kcf_tools/pull/6) → `dev`,
+  [PR #7](https://github.com/Nyamkani/kcf_tools/pull/7) → `main`;
+  Release 정합성 [#8](https://github.com/Nyamkani/kcf_tools/pull/8), [#9](https://github.com/Nyamkani/kcf_tools/pull/9).
+- **Plot/CSV:** Local Echo 숫자 scalar/fixed-array Plot, bounded history, CSV export;
+  Remote Topic Subscribe Plot/CSV 통합 및 관측 구간/세대 경계 처리.
+- **GUI:** 기존 Ownership/Communication Graph, Remote Workspace 및 제어/진단 기능 유지.
+- **실행:** GUI CMake target `kcf_tool`, 실제 바이너리 `/usr/bin/kcf_tools`;
+  패키지 기본 Backend는 Real KCF, 개발 비패키징 기본값은 Mock.
+- **호환성:** Tools CMake 0.16.0. Release 패키징은 Core **v5.6.2 정확한 버전**으로 정적 링크;
+  CI와 CD에서 Core `v5.6.2` 태그를 참조합니다.
+- **CI/CD:** Ubuntu 24.04/26.04 × AMD64/ARM64 Native DEB 4개와 SHA256SUMS 게시.
+  VM Real Backend·Qt 테스트 및 Virtual LAN 자동화 기록은 실제 디바이스 배포 검증과 구분.
+- **Known limitations:** 모든 원본 Topic 샘플의 lossless 기록은 보장하지 않음;
+  신규 DEB의 OPI5+ UGV02 Plot/CSV 실물 시험, 다중 Topic/장시간 부하 및 물리 Wi-Fi 재연결은 추가 검증.
+  [Tools #4](https://github.com/Nyamkani/kcf_tools/issues/4),
+  [Core #6](https://github.com/Nyamkani/kss_control_framework/issues/6) 참고.
+- 상세 [Release Notes](docs/releases/v0.16.0.md). 과거 버전의 검증 값·당시 "미배포" 문구는 당시 이력으로 보존.
+
 ## v0.15.0 — Communication Graph / Metadata Snapshot / Core 5.6.1
 
 - CMake 버전 0.15.0. 실제 Backend는 Core >=5.6.1 및 `PeerInfo.last_complete_snapshot`과 Remote Client 필수 API를 Configure에서 검사합니다. Core 5.6.0은 거부하며 Core 없는 Mock/stub는 유지합니다.
