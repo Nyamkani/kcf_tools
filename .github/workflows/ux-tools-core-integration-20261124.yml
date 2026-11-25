@@ -39,9 +39,14 @@ jobs:
           set -e
           mkdir -p build/remote-lan-e2e
           if sudo unshare --net --ipc --mount --pid --fork --mount-proc true; then
-            sudo env QT_QPA_PLATFORM=offscreen \
+            if ! sudo env QT_QPA_PLATFORM=offscreen \
               unshare --net --ipc --mount --pid --fork --mount-proc \
-              python3 tests/remote_control_e2e.py "${GITHUB_WORKSPACE}/core" "${GITHUB_WORKSPACE}/build" "${GITHUB_WORKSPACE}/build/remote-lan-e2e"
+              python3 tests/remote_control_e2e.py "${GITHUB_WORKSPACE}/core" "${GITHUB_WORKSPACE}/build" "${GITHUB_WORKSPACE}/build/remote-lan-e2e"; then
+              echo "Virtual LAN E2E failed; fixture stderr and results follow:"
+              sudo sh -c 'for f in build/remote-lan-e2e/*.stderr; do echo "===== $f"; tail -n 70 "$f"; done'
+              sudo sh -c 'test ! -f build/remote-lan-e2e/results.json || cat build/remote-lan-e2e/results.json'
+              exit 1
+            fi
             echo "Virtual LAN Remote Topic/Plot/Diagnostics: VERIFIED PASS"
           else
             echo "::warning::Virtual LAN Remote Topic/Plot/Diagnostics: UNVERIFIED — runner prohibits isolated network namespaces"
