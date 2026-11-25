@@ -55,5 +55,29 @@ int main() {
     assert(history.DroppedByCapacity()==24);
     assert(history.Records().front().sequence==25);
     assert(history.Observe(d,now-1ms)==TopicPlotHistory::ObserveResult::INVALID_SAMPLE);
+    // CSV quoting and bounded observation/field contracts.
+    TopicPlotHistory escaped;
+    DataSnapshot special{};special.type_id=12;special.sequence=1;
+    FieldValue quoted;quoted.name="wheel,\"left\"";quoted.kind=ValueKind::FLOATING_POINT;
+    quoted.value="1.25";special.fields={quoted};
+    escaped.Reset("robot,\"test\"",12);
+    assert(escaped.Observe(special,now+1s)==TopicPlotHistory::ObserveResult::RECORDED);
+    std::ostringstream csv_quoted;assert(escaped.WriteCsv(csv_quoted));
+    assert(csv_quoted.str().find("\"wheel,\"\"left\"\"\"")!=std::string::npos);
+    assert(csv_quoted.str().find("\"robot,\"\"test\"\"\"")!=std::string::npos);
+    special.sequence=2;special.fields[0].name="wheel_right";
+    assert(escaped.Observe(special,now+1100ms)==TopicPlotHistory::ObserveResult::NEW_SEGMENT);
+    assert(escaped.Records().size()==1 && escaped.UnobservedSequenceSteps()==0);
+    special.fields[0].kind=ValueKind::STRING;
+    assert(escaped.Observe(special,now+1200ms)==TopicPlotHistory::ObserveResult::NO_NUMERIC_FIELDS);
+    assert(escaped.Records().size()==1);
+    special.fields[0].kind=ValueKind::FLOATING_POINT;special.fields[0].value="inf";
+    assert(escaped.Observe(special,now+1300ms)==TopicPlotHistory::ObserveResult::INVALID_SAMPLE);
+    DataSnapshot large{};large.type_id=13;large.sequence=1;
+    FieldValue excess;excess.name="array";excess.kind=ValueKind::SIGNED_INTEGER;
+    excess.array_values.assign(TopicPlotHistory::MAX_NUMERIC_FIELDS+1,"1");
+    large.fields={excess};TopicPlotHistory capped;capped.Reset("large",large.type_id);
+    assert(capped.Observe(large,now+1400ms)==TopicPlotHistory::ObserveResult::INVALID_SAMPLE);
+    assert(capped.Records().empty());
     std::cout<<"Bounded local Topic plot numeric/gap/segment/CSV contracts PASS\n";
 }
