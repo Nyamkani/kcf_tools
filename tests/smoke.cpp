@@ -128,6 +128,17 @@ int main(int argc, char** argv) {
         Check(disconnected.findChild<QLabel*>("backendStatus")->text() == "Backend: KCF", "KCF backend label");
         Check(disconnected.findChild<QLabel*>("connectionStatus")->text() == "Local Runtime: None discovered", "KCF connection label");
         Check(disconnected.findChild<QTabWidget*>()->count() == 8, "KCF retains tabs");
+        // Remote Plot exists but cannot export without a subscribed, decoded
+        // observation. No synthetic Remote samples appear in disconnected mode.
+        const auto* remote_plot_field=disconnected.findChild<QComboBox*>("remoteTopicPlotField");
+        const auto* remote_plot_export=disconnected.findChild<QPushButton*>("remoteTopicPlotExport");
+        const auto* remote_plot_summary=disconnected.findChild<QLabel*>("remoteTopicPlotSummary");
+        Check(remote_plot_field && !remote_plot_field->isEnabled() && remote_plot_field->count()==0,
+              "disconnected Remote plot has no numeric selection");
+        Check(remote_plot_export && !remote_plot_export->isEnabled(),
+              "disconnected Remote CSV export disabled");
+        Check(remote_plot_summary && remote_plot_summary->text().contains("Remote observed=0"),
+              "Remote plot starts with no observations");
         for (auto* list : disconnected.findChildren<QListWidget*>())
             Check(list->count() == 0, "KCF GUI has no fake data");
         Check(!disconnected.findChild<QLineEdit*>("parameterEditor")->isEnabled(), "KCF editor disabled");
