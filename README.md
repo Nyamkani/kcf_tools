@@ -1,3 +1,27 @@
+# KCF Tools — v0.16.0
+
+Linux C++17 / Qt6 Widgets 기반 KCF GUI 도구입니다.
+
+## 최신 Release
+
+- **Tools:** v0.16.0
+- **Release 빌드 기준:** KCF Core v5.6.2
+- **실행 파일:** `kcf_tools`
+- **패키지 기본 Backend:** `kcf` (Real)
+- **Mock 실행:** `kcf_tools --backend mock`
+- **지원 패키지:** Ubuntu 24.04 / 26.04, AMD64 / ARM64
+
+이번 버전에서는 Local/Remote Topic Plot, CSV Export,
+Remote Workspace 개선, 실행 파일 명칭 및 CI/CD 배포 구성을
+정리했습니다.
+
+자세한 변경 사항과 검증 한계는
+[Release Notes](docs/releases/v0.16.0.md)를 참고하세요.
+
+---
+
+## 이전 버전 기록
+
 # KCF Tool — v0.15.0
 
 Linux C++17 / Qt6 Widgets 기반 standalone Tool입니다. GUI는 `ToolBackend`만 사용하며,

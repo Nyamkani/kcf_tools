@@ -30,15 +30,15 @@ include(CMakePushCheckState)
 cmake_push_check_state(RESET)
 set(CMAKE_REQUIRED_INCLUDES "${KCF_SOURCE_DIR}/kcf/include")
 # Do not reuse the result after the selected Core source has changed.
-unset(KCF_TOOL_PACKAGE_CORE_561 CACHE)
+unset(KCF_TOOL_PACKAGE_CORE_562 CACHE)
 check_cxx_source_compiles("#include <kcf/network/compatibility.hpp>
 constexpr kcf::network::FrameworkVersion version{};
-static_assert(version.major == 5 && version.minor == 6 && version.patch == 1,
-              \"Phase-1 packaging requires KCF 5.6.1\");
-int main() { return 0; }" KCF_TOOL_PACKAGE_CORE_561)
+static_assert(version.major == 5 && version.minor == 6 && version.patch == 2,
+              \"Phase-1 packaging requires KCF 5.6.2\");
+int main() { return 0; }" KCF_TOOL_PACKAGE_CORE_562)
 cmake_pop_check_state()
-if(NOT KCF_TOOL_PACKAGE_CORE_561 OR NOT KCF_TOOL_REMOTE_CONTROL OR NOT KCF_TOOL_NETWORK_DIAGNOSTICS)
-    message(FATAL_ERROR "Package requires KCF 5.6.1 with Remote Control/Topic and Diagnostics APIs")
+if(NOT KCF_TOOL_PACKAGE_CORE_562 OR NOT KCF_TOOL_REMOTE_CONTROL OR NOT KCF_TOOL_NETWORK_DIAGNOSTICS)
+    message(FATAL_ERROR "Package requires KCF 5.6.2 with Remote Control/Topic and Diagnostics APIs")
 endif()
 set(CPACK_GENERATOR DEB)
 set(CMAKE_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS
@@ -47,7 +47,7 @@ set(CPACK_PACKAGE_NAME kcf-tools)
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_VENDOR Nyamkani)
 set(CPACK_PACKAGE_CONTACT "Nyamkani <Nyamkani@users.noreply.github.com>")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "KCF Tools Qt6 GUI with the KCF 5.6.1 real Backend")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "KCF Tools Qt6 GUI with the KCF 5.6.2 real Backend")
 set(CPACK_DEBIAN_PACKAGE_SECTION devel)
 set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Nyamkani/kcf_tools")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
