@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(kcf_tool VERSION 0.15.0 LANGUAGES CXX)
+project(kcf_tool VERSION 0.16.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -21,7 +21,7 @@ if(KCF_SOURCE_DIR)
     cmake_push_check_state(RESET)
     set(CMAKE_REQUIRED_INCLUDES "${KCF_SOURCE_DIR}/kcf/include")
     # Recheck even when the source path is unchanged but its working tree changed.
-    unset(KCF_TOOL_CORE_561_API CACHE)
+    unset(KCF_TOOL_CORE_562_API CACHE)
     check_cxx_source_compiles([=[
 #include <kcf/network/peer_discovery.hpp>
 #include <kcf/network/remote_control_client.hpp>
@@ -31,8 +31,8 @@ if(KCF_SOURCE_DIR)
 #include <utility>
 constexpr kcf::network::FrameworkVersion version{};
 static_assert(version.major > 5 || (version.major == 5 &&
-    (version.minor > 6 || (version.minor == 6 && version.patch >= 1))),
-    "KCF Tools 0.15 requires Core >=5.6.1");
+    (version.minor > 6 || (version.minor == 6 && version.patch >= 2))),
+    "KCF Tools 0.16 requires Core >=5.6.2");
 using Snapshot = decltype(std::declval<kcf::network::PeerInfo>().last_complete_snapshot);
 static_assert(std::is_same_v<decltype(Snapshot::valid), bool>);
 static_assert(std::is_same_v<decltype(Snapshot::stale), bool>);
@@ -43,10 +43,10 @@ static_assert(sizeof(kcf::network::RemoteControlClient) > 0);
 static_assert(sizeof(kcf::network::RemoteTopicClient) > 0);
 static_assert(sizeof(kcf::network::NetworkDiagnosticsClient) > 0);
 int main() { return 0; }
-]=] KCF_TOOL_CORE_561_API)
+]=] KCF_TOOL_CORE_562_API)
     cmake_pop_check_state()
-    if(NOT KCF_TOOL_CORE_561_API)
-        message(FATAL_ERROR "KCF Tools 0.15 real Backend requires Core >=5.6.1 with PeerInfo.last_complete_snapshot (valid/stale/uint64 revision/endpoints), Remote Control/Topic and Diagnostics APIs. Core 5.6.0 is unsupported. Check KCF_SOURCE_DIR and the CMake compile-check log.")
+    if(NOT KCF_TOOL_CORE_562_API)
+        message(FATAL_ERROR "KCF Tools 0.16 real Backend requires Core >=5.6.2 with PeerInfo.last_complete_snapshot (valid/stale/uint64 revision/endpoints), Remote Control/Topic and Diagnostics APIs. Core 5.6.0 is unsupported. Check KCF_SOURCE_DIR and the CMake compile-check log.")
     endif()
     find_package(Threads REQUIRED)
     find_package(nlohmann_json 3.2 REQUIRED)
