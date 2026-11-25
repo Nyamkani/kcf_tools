@@ -19,6 +19,9 @@ struct RemoteActivity {
     bool execution_unknown{false},cancel_unknown{false},cancel_accepted{false};
     bool has_value{false};int state{0},error{0};
     std::uint64_t sequence{0},received_packets{0},route_id{0};
+    // Exact receive-side route identity for cross-checking sender Gateway diagnostics.
+    RouteEndpointIdentity route_source,route_destination;
+    std::uint64_t source_session{0},destination_session{0};
     std::chrono::steady_clock::time_point observed_at{};
     DataSnapshot feedback,result;
 };
