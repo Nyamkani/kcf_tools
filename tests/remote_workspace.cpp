@@ -78,7 +78,7 @@ int main(int argc,char** argv){QApplication app(argc,argv);application=&app;auto
             const auto csv=output.str();
             assert(csv.find("observed_elapsed_ms,transport_sequence,unobserved_sequence_steps")!=std::string::npos);
             assert(csv.find("count")!=std::string::npos);
-            assert(csv.find("\\n")!=std::string::npos);
+            assert(csv.find('\n')!=std::string::npos);
             std::cout<<"{\"handle\":"<<retained_handle<<",\"received\":"<<received_before
                      <<",\"remote_plot\":1,\"csv_ready\":1,\"sender_route_verified\":1}"<<std::endl;
         }else if(op=="SNAPSHOT_UPDATING"){
