@@ -1,0 +1,115 @@
+name: KCF Tools Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag, version, Core reference and main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(sed -nE \
+            's/^project\(kcf_tool VERSION ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' \
+            CMakeLists.txt)"
+
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "v${version}"
+
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = \
+               "$(git rev-parse origin/main)"
+
+          test -f "docs/releases/v${version}.md"
+
+          grep -q 'ref: v5.6.2' \
+            .github/workflows/tools-package-cd.yml
+          grep -q 'ref: v5.6.2' \
+            .github/workflows/ux-tools-core-integration-20261124.yml
+
+  package:
+    needs: verify
+    uses: ./.github/workflows/tools-package-cd.yml
+    permissions:
+      contents: read
+
+  release:
+    needs: [verify, package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tools-ubuntu*
+          path: artifacts
+
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release
+
+          find artifacts -type f -name '*.deb' \
+            -exec cp -t release {} +
+
+          version="${GITHUB_REF_NAME#v}"
+
+          for os in 24.04 26.04; do
+            for arch in amd64 arm64; do
+              deb="release/kcf-tools_${version}-1+ubuntu${os}_${arch}.deb"
+
+              test -f "$deb"
+              test "$(dpkg-deb -f "$deb" Package)" = "kcf-tools"
+              test "$(dpkg-deb -f "$deb" Architecture)" = "$arch"
+              test "$(dpkg-deb -f "$deb" Version)" = \
+                "${version}-1+ubuntu${os}"
+
+              dpkg-deb --contents "$deb" |
+                grep -q './usr/bin/kcf_tools'
+            done
+          done
+
+          test "$(find release -maxdepth 1 -name '*.deb' | wc -l)" -eq 4
+
+          (
+            cd release
+            sha256sum ./*.deb > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+          ls -lh release
+
+      - name: Create Draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release create "$GITHUB_REF_NAME" \
+            release/*.deb \
+            release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --prerelease \
+            --title "KCF Tools $GITHUB_REF_NAME" \
+            --notes-file "docs/releases/$GITHUB_REF_NAME.md"
