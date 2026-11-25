@@ -1,7 +1,7 @@
 name: KCF Tools with combined Core UX validation
 on:
   push:
-    branches: [integration/ux-tools-core-20261124]
+    branches: [integration/ux-tools-core-20261124, dev]
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,3 +51,10 @@ jobs:
           else
             echo "::warning::Virtual LAN Remote Topic/Plot/Diagnostics: UNVERIFIED — runner prohibits isolated network namespaces"
           fi
+
+  package:
+    name: Native DEB packages
+    needs: linux-real
+    uses: ./.github/workflows/tools-package-cd.yml
+    permissions:
+      contents: read
