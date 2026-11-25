@@ -1,4 +1,5 @@
 #include "kcf_tool/model/topic_plot_history.hpp"
+#include "kcf_tool/model/remote_control.hpp"
 #include <cassert>
 #include <cerrno>
 #include <chrono>
@@ -79,5 +80,44 @@ int main() {
     large.fields={excess};TopicPlotHistory capped;capped.Reset("large",large.type_id);
     assert(capped.Observe(large,now+1400ms)==TopicPlotHistory::ObserveResult::INVALID_SAMPLE);
     assert(capped.Records().empty());
+    // Sender diagnostics are matched only through complete route identity;
+    // same Topic name or route ID must never authorize a false correlation.
+    kcf_tool::NetworkSnapshot network;
+    kcf_tool::RemoteActivity activity;activity.topic=true;activity.handle=9;
+    activity.endpoint.name="/shared";activity.route_id=100;
+    activity.route_source={"source","boot-src",123,456,10};
+    activity.route_destination={"receiver","boot-dst",321,654,20};
+    activity.source_session=55;activity.destination_session=77;
+    kcf_tool::RemoteHost sender;sender.id="source";sender.boot_id="boot-src";
+    sender.session=55;sender.state="ONLINE";
+    sender.diagnostics.status=kcf_tool::DiagnosticsState::VALID;
+    sender.diagnostics.gateway_host=sender.id;sender.diagnostics.gateway_boot=sender.boot_id;
+    sender.diagnostics.gateway_session=sender.session;sender.diagnostics.observed_at_unix_ms=10000;
+    kcf_tool::RemoteRoute route;route.sending=true;route.route_id=activity.route_id;
+    route.name=activity.endpoint.name;route.source=activity.route_source;
+    route.destination=activity.route_destination;
+    route.source_session=activity.source_session;route.destination_session=activity.destination_session;
+    sender.diagnostics.routes.push_back(route);network.hosts.push_back(sender);
+    const auto match=[&]{return kcf_tool::FindRemoteTopicSenderRoute(network,activity,10500);};
+    assert(match() && match()->route_id==100);
+    activity.destination_session++;assert(!match());activity.destination_session--;
+    activity.route_destination.registration_id++;assert(!match());activity.route_destination.registration_id--;
+    activity.route_source.start_ticks++;assert(!match());activity.route_source.start_ticks--;
+    activity.route_id++;assert(!match());activity.route_id--;
+    activity.endpoint.name="/other";assert(!match());activity.endpoint.name="/shared";
+    activity.communication_lost=true;assert(!match());activity.communication_lost=false;
+    network.hosts[0].diagnostics.routes[0].sending=false;assert(!match());
+    network.hosts[0].diagnostics.routes[0].sending=true;
+    network.hosts[0].diagnostics.gateway_session++;assert(!match());
+    network.hosts[0].diagnostics.gateway_session--;
+    network.hosts[0].diagnostics.status=kcf_tool::DiagnosticsState::LOST;assert(!match());
+    network.hosts[0].diagnostics.status=kcf_tool::DiagnosticsState::TRUNCATED;assert(match());
+    network.hosts[0].diagnostics.observed_at_unix_ms=1;assert(!match());
+    network.hosts[0].diagnostics.observed_at_unix_ms=20000;assert(!match());
+    network.hosts[0].diagnostics.observed_at_unix_ms=10000;assert(match());
+    network.hosts[0].diagnostics.routes.push_back(route);assert(!match()); // ambiguous
+    network.hosts[0].diagnostics.routes.pop_back();
+    network.hosts[0].state="LOST";assert(!match());network.hosts[0].state="ONLINE";
+    std::cout<<"Remote Topic sender diagnostic strict identity/freshness contracts PASS\\n";
     std::cout<<"Bounded local Topic plot numeric/gap/segment/CSV contracts PASS\n";
 }
