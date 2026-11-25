@@ -36,7 +36,16 @@ RemoteReply RemoteRuntime::Execute(const RemoteCommand& command){
             out.activities.push_back(std::move(v));
         }
         for(auto& entry:subscriptions_){auto& t=entry.second;auto s=t.handle->Snapshot();RemoteActivity v;v.topic=true;v.handle=entry.first;v.endpoint=t.endpoint;
-            v.state=static_cast<int>(s.state);v.error=s.error;v.sequence=s.sequence;v.received_packets=s.route.packets_received;v.route_id=s.route.route_id;v.observed_at=std::chrono::steady_clock::now();v.communication_lost=!Current(t.endpoint);
+            v.state=static_cast<int>(s.state);v.error=s.error;v.sequence=s.sequence;v.received_packets=s.route.packets_received;v.route_id=s.route.route_id;
+            const auto route_identity=[](const n::RemoteEndpointIdentity& id){
+                const auto& r=id.runtime;
+                return RouteEndpointIdentity{[&]{constexpr char hex[]="0123456789abcdef";std::string out;for(auto v:r.host.bytes){out+=hex[v>>4];out+=hex[v&15];}return out;}(),
+                    [&]{constexpr char hex[]="0123456789abcdef";std::string out;for(auto v:r.boot_id.bytes){out+=hex[v>>4];out+=hex[v&15];}return out;}(),
+                    r.pid,r.process_start_ticks,id.registration_id};
+            };
+            v.route_source=route_identity(s.route.source);v.route_destination=route_identity(s.route.destination);
+            v.source_session=s.route.source_session;v.destination_session=s.route.destination_session;
+            v.observed_at=std::chrono::steady_clock::now();v.communication_lost=!Current(t.endpoint);
             v.terminal=s.state==n::RemoteTopicState::CLOSED||s.state==n::RemoteTopicState::ERROR||s.state==n::RemoteTopicState::LOST||s.state==n::RemoteTopicState::STALE;
             if(s.has_value&&!v.communication_lost&&!v.terminal){v.error=Decode(s.descriptor,s.payload,v.feedback);v.has_value=!v.error;v.feedback.sequence=s.sequence;}
             out.activities.push_back(std::move(v));
