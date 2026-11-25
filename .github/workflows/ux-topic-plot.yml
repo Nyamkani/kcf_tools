@@ -1,0 +1,25 @@
+name: KCF Tools Topic Plot UX
+on:
+  push:
+    branches: [feature/ux-topic-plot-local]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ubuntu24:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qt6-base-dev
+      - name: Configure
+        run: cmake -S . -B build -DKCF_TOOL_BUILD_GUI=ON -DKCF_TOOL_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build --parallel 4 --target kcf_tool kcf_tool_topic_plot_history kcf_tool_smoke
+      - name: Topic plot data contract
+        run: ctest --test-dir build -R '^kcf_tool_topic_plot_history$' --output-on-failure
+      - name: GUI smoke
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^kcf_tool_smoke$' --output-on-failure

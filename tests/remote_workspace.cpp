@@ -9,6 +9,7 @@
 #include <QTabWidget>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <thread>
 using namespace kcf_tool;using namespace std::chrono_literals;
 QApplication* application;
@@ -39,7 +40,47 @@ int main(int argc,char** argv){QApplication app(argc,argv);application=&app;auto
         }else if(op=="SNAPSHOT_SUBSCRIBE"){
             Wait([&]{return button("Subscribe")->isEnabled();});button("Subscribe")->click();
             Wait([&]{for(const auto& a:activity())if(a.topic&&a.endpoint.id==retained_topic.id&&!a.terminal&&a.received_packets){retained_handle=a.handle;received_before=a.received_packets;return true;}return false;});
-            std::cout<<"{\"handle\":"<<retained_handle<<",\"received\":"<<received_before<<"}"<<std::endl;
+            // Actual veth Remote Topic -> decoded fields -> Qt Plot/CSV gating.
+            auto* remote_field=window.findChild<QComboBox*>("remoteTopicPlotField");
+            auto* remote_export=window.findChild<QPushButton*>("remoteTopicPlotExport");
+            auto* remote_summary=window.findChild<QLabel*>("remoteTopicPlotSummary");
+            auto* remote_status=window.findChild<QLabel*>("remoteStatus2");
+            assert(remote_field && remote_export && remote_summary && remote_status);
+            Wait([&]{return remote_export->isEnabled() && remote_field->isEnabled() &&
+                remote_field->count()>0 && !remote_summary->text().contains("Remote observed=0");});
+            assert(remote_field->findText("count")>=0);
+            // Verified sender-side diagnostics must refer to the same route,
+            // not merely to another Publisher sharing the Topic name.
+            Wait([&]{return remote_status->text().contains("Sender route=") &&
+                !remote_status->text().contains("Sender route diagnostics: Unavailable");});
+            bool matched=false;
+            for(const auto& a:activity())if(a.handle==retained_handle && a.topic){
+                const auto sample=b->GetNetworkSnapshot();
+                const auto now=static_cast<std::uint64_t>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count());
+                const auto* route=FindRemoteTopicSenderRoute(sample,a,now);
+                matched=route && route->route_id==a.route_id &&
+                    remote_status->text().contains(QString("Sender route=%1").arg(route->route_id));
+            }
+            assert(matched);
+            // Export the actually decoded subscription samples through the same
+            // model used by the GUI. CSV content is not synthesized from counters.
+            TopicPlotHistory captured;
+            captured.Reset(retained_topic.name,retained_topic.value_type.type_id);
+            Wait([&]{for(const auto& a:activity())if(a.handle==retained_handle&&a.topic&&a.has_value){
+                if(captured.Observe(a.feedback,TopicPlotHistory::Clock::now())==
+                   TopicPlotHistory::ObserveResult::RECORDED)
+                    return captured.Records().size()>=2;
+                }return false;});
+            std::ostringstream output;
+            assert(captured.WriteCsv(output));
+            const auto csv=output.str();
+            assert(csv.find("observed_elapsed_ms,transport_sequence,unobserved_sequence_steps")!=std::string::npos);
+            assert(csv.find("count")!=std::string::npos);
+            assert(csv.find('\n')!=std::string::npos);
+            std::cout<<"{\"handle\":"<<retained_handle<<",\"received\":"<<received_before
+                     <<",\"remote_plot\":1,\"csv_ready\":1,\"sender_route_verified\":1}"<<std::endl;
         }else if(op=="SNAPSHOT_UPDATING"){
             Wait([&]{auto h=host();return h.revision!=before.revision&&!h.metadata_ready&&list(2)->toolTip().contains("STALE");});
             auto h=host();assert(h.id==before.id&&h.boot_id==before.boot_id&&h.session==before.session&&h.state=="ONLINE");
@@ -62,6 +103,9 @@ int main(int argc,char** argv){QApplication app(argc,argv);application=&app;auto
             bool kept=false;for(const auto& a:activity())if(a.handle==retained_handle){assert(!a.terminal);received_before=a.received_packets;kept=true;}assert(kept);
             Wait([&]{for(const auto& a:activity())if(a.handle==retained_handle)return !a.terminal&&a.received_packets>received_before;return false;});
             button("Unsubscribe")->click();Wait([&]{return button("Subscribe")->isEnabled();});
+            // Unsubscribe keeps the historical CSV export available, but a
+            // new session/selection must not silently reuse that plot.
+            assert(window.findChild<QPushButton*>("remoteTopicPlotExport")->isEnabled());
             before=h;std::cout<<"{\"atomic_complete\":1,\"selection_retained\":1,\"same_handle_received\":1}"<<std::endl;
         }else if(op=="SNAPSHOT_REPLACED"){
             auto next=Endpoint(*b,"T",2,"/virtual/shared/topic");Wait([&]{next=Endpoint(*b,"T",2,"/virtual/shared/topic");return next.identity.registration_id!=retained_topic.identity.registration_id;});
