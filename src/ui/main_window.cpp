@@ -1,7 +1,13 @@
 #include "kcf_tool/ui/main_window.hpp"
 #include "kcf_tool/ui/graph_widget.hpp"
 #include "kcf_tool/ui/remote_workspace.hpp"
+#include "kcf_tool/ui/topic_plot_widget.hpp"
 #include <QFormLayout>
+#include <QComboBox>
+#include <QFileDialog>
+#include <QFile>
+#include <QMessageBox>
+#include <fstream>
 #include <QTreeWidget>
 #include <QCloseEvent>
 #include <QHeaderView>
@@ -200,6 +206,28 @@ MainWindow::MainWindow(std::unique_ptr<ToolBackend> backend,
     echo_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     echo_table_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     details->addWidget(echo_table_);
+
+    auto* plot_controls=new QHBoxLayout;
+    topic_plot_field_=new QComboBox;
+    topic_plot_field_->setObjectName("topicPlotField");
+    topic_plot_field_->setEnabled(false);
+    topic_plot_export_=new QPushButton("Export observed CSV");
+    topic_plot_export_->setObjectName("topicPlotExport");
+    topic_plot_export_->setEnabled(false);
+    plot_controls->addWidget(new QLabel("Plot numeric field:"));
+    plot_controls->addWidget(topic_plot_field_,1);
+    plot_controls->addWidget(topic_plot_export_);
+    details->addLayout(plot_controls);
+    topic_plot_summary_=new QLabel("Plot: no observed samples");
+    topic_plot_summary_->setObjectName("topicPlotSummary");
+    topic_plot_summary_->setWordWrap(true);
+    details->addWidget(topic_plot_summary_);
+    topic_plot_view_=new TopicPlotWidget;
+    details->addWidget(topic_plot_view_);
+    connect(topic_plot_field_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this,[this](int){UpdateTopicPlot();});
+    connect(topic_plot_export_,&QPushButton::clicked,this,&MainWindow::ExportTopicPlot);
+
     echo_timer_ = new QTimer(this);
     echo_timer_->setObjectName("echoTimer");
     echo_timer_->setInterval(100);
@@ -339,11 +367,11 @@ void MainWindow::Refresh() {
     const auto connection = backend_->GetConnectionState();
     switch (connection) {
     case BackendConnectionState::CONNECTED:
-        connection_status_->setText("Connection: Connected"); break;
+        connection_status_->setText("Local Runtime: Connected"); break;
     case BackendConnectionState::DISCONNECTED:
-        connection_status_->setText("Connection: Disconnected"); break;
+        connection_status_->setText("Local Runtime: None discovered"); break;
     case BackendConnectionState::ERROR:
-        connection_status_->setText("Connection: Error"); break;
+        connection_status_->setText("Local Runtime: Error"); break;
     }
     if (result != 0 || connection != BackendConnectionState::CONNECTED) {
         // Discard stale Local data; Network discovery has an independent lifetime.
@@ -366,7 +394,7 @@ void MainWindow::Refresh() {
         UpdateExplorer();
         discovery_refreshed_=true;
         statusBar()->showMessage("Last refresh: " +
-            (result != 0 ? ErrorText(result) : QStringLiteral("Backend unavailable")));
+            (result != 0 ? ErrorText(result) : QStringLiteral("No Local Runtime discovered (Remote Network is independent)")));
         return;
     }
     const auto application = backend_->GetApplicationInfo();
@@ -481,6 +509,10 @@ void MainWindow::OpenElementEndpoint(QTreeWidgetItem* item) {
 void MainWindow::ShowTopic() {
     if(service_busy_)return;
     StopEcho();
+    topic_plot_history_.Reset();
+    topic_plot_field_->clear();
+    topic_plot_field_->setEnabled(false);
+    UpdateTopicPlot();
     start_echo_->setEnabled(false);
     echo_table_->setRowCount(0);
     echo_status_->setText("Echo stopped");
@@ -525,6 +557,14 @@ void MainWindow::StartEcho() {
     start_echo_->setEnabled(false);
     stop_echo_->setEnabled(true);
     echo_rate_history_.clear();
+    const auto& selected=topics_[row];
+    topic_plot_history_.Reset(selected.name+" pid="+std::to_string(selected.identity.runtime.pid)+
+        " start="+std::to_string(selected.identity.runtime.process_start_ticks)+
+        " registration="+std::to_string(selected.identity.registration_id),
+        selected.type_id);
+    topic_plot_field_->clear();
+    topic_plot_field_->setEnabled(false);
+    UpdateTopicPlot();
     topic_fields_[3]->setText("Measuring...");
     echo_timer_->start();
     PollEcho();
@@ -590,8 +630,42 @@ void MainWindow::PollEcho() {
         else for (std::size_t i = 0; i < field.array_values.size(); ++i)
             append(Text(field.name) + "[" + Number(i) + "]", field, field.array_values[i]);
     }
+
+    const auto observed=topic_plot_history_.Observe(snapshot,now);
+    if(observed==TopicPlotHistory::ObserveResult::NEW_SEGMENT ||
+       (observed==TopicPlotHistory::ObserveResult::RECORDED && topic_plot_field_->count()==0)) {
+        const auto previous=topic_plot_field_->currentText();
+        topic_plot_field_->clear();
+        for(const auto& name:topic_plot_history_.Fields())topic_plot_field_->addItem(Text(name));
+        const auto idx=topic_plot_field_->findText(previous);
+        if(idx>=0)topic_plot_field_->setCurrentIndex(idx);
+        topic_plot_field_->setEnabled(topic_plot_field_->count()!=0);
+    }
+    UpdateTopicPlot();
     topic_fields_[4]->setText(Number(snapshot.sequence));
     echo_status_->setText("Echo running — 100 ms display refresh / sequence " + Number(snapshot.sequence));
+}
+void MainWindow::UpdateTopicPlot() {
+    const auto size=topic_plot_history_.Records().size();
+    topic_plot_export_->setEnabled(size!=0);
+    topic_plot_summary_->setText(QString("Observed=%1 (retained max %2) | Unobserved sequence steps=%3 | Buffer evictions=%4 | 100 ms UI polling, not full-rate capture")
+        .arg(topic_plot_history_.Observations())
+        .arg(topic_plot_history_.MAX_RECORDS)
+        .arg(topic_plot_history_.UnobservedSequenceSteps())
+        .arg(topic_plot_history_.DroppedByCapacity()));
+    topic_plot_view_->SetHistory(&topic_plot_history_,topic_plot_field_->currentIndex());
+}
+void MainWindow::ExportTopicPlot() {
+    if(topic_plot_history_.Records().empty())return;
+    const QString path=QFileDialog::getSaveFileName(this,"Export observed Topic samples",QString(),"CSV files (*.csv)");
+    if(path.isEmpty())return;
+    std::ofstream output(path.toStdString(),std::ios::binary|std::ios::trunc);
+    if(!output || !topic_plot_history_.WriteCsv(output) || !output.flush() || !output.good()) {
+        QMessageBox::warning(this,"Topic CSV export","Could not write the selected CSV file.");
+        return;
+    }
+    statusBar()->showMessage(QString("Exported %1 observed samples (intermediate samples not recorded)")
+        .arg(topic_plot_history_.Records().size()));
 }
 void MainWindow::ShowParameter() {
     if(service_busy_)return;

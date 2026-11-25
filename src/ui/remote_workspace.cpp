@@ -1,5 +1,6 @@
 #include "kcf_tool/ui/remote_workspace.hpp"
 #include "kcf_tool/ui/graph_widget.hpp"
+#include "kcf_tool/ui/topic_plot_widget.hpp"
 #include <QNetworkInterface>
 #include <QHostAddress>
 #include <QComboBox>
@@ -24,6 +25,8 @@
 #include <QSettings>
 #include <QScrollBar>
 #include <QDateTime>
+#include <QFileDialog>
+#include <fstream>
 #include <QRegularExpression>
 #include <algorithm>
 #include <cstring>
@@ -65,6 +68,10 @@ struct RemoteWorkspace::Impl {
     std::future<RemoteReply> polling;std::uint64_t poll_epoch{0};QListWidget* activity_list;QLabel* activity_status;std::unique_ptr<Form> feedback,result;QPushButton* cancel;std::map<std::uint64_t,RemoteActivity> activities;
     struct TopicRate {std::chrono::steady_clock::time_point at{};std::uint64_t packets{0},route{0};double hz{-1};};
     std::map<std::uint64_t,TopicRate> rates;
+    TopicPlotHistory remote_plot;
+    TopicPlotWidget* remote_plot_view{nullptr};QComboBox* remote_plot_field{nullptr};
+    QPushButton* remote_plot_export{nullptr};QLabel* remote_plot_summary{nullptr};
+    std::uint64_t remote_plot_handle{0},remote_plot_route{0};
     QLabel* local_status;QTreeWidget* local_peers;std::uint64_t local_observed{0};
     int ticks{0};
     Impl(RemoteWorkspace& w,ToolBackend& b,QTabWidget& t,GraphWidget& g):owner(w),backend(b),tabs(t),graph(g){
@@ -103,18 +110,70 @@ struct RemoteWorkspace::Impl {
             QObject::connect(panels[i].list,&QListWidget::currentRowChanged,&owner,[this,i](int row){Select(i,row);});
             QObject::connect(panels[i].input->table,&QTableWidget::itemChanged,&owner,[this,i]{if(!panels[i].input->rendering)panels[i].input->dirty=true;});
         }
+        // Bounded, observed-only Remote Topic plot. No full-rate capture.
+        auto* topic_layout=qobject_cast<QVBoxLayout*>(panels[2].page->layout());
+        auto* plot_controls=new QHBoxLayout;
+        remote_plot_field=new QComboBox;remote_plot_field->setObjectName("remoteTopicPlotField");remote_plot_field->setEnabled(false);
+        remote_plot_export=new QPushButton("Export Remote observed CSV");remote_plot_export->setObjectName("remoteTopicPlotExport");remote_plot_export->setEnabled(false);
+        plot_controls->addWidget(new QLabel("Plot numeric field:"));plot_controls->addWidget(remote_plot_field,1);
+        plot_controls->addWidget(remote_plot_export);topic_layout->addLayout(plot_controls);
+        remote_plot_summary=Label();remote_plot_summary->setObjectName("remoteTopicPlotSummary");topic_layout->addWidget(remote_plot_summary);
+        remote_plot_view=new TopicPlotWidget;remote_plot_view->setObjectName("remoteTopicPlotWidget");topic_layout->addWidget(remote_plot_view);
+        QObject::connect(remote_plot_field,QOverload<int>::of(&QComboBox::currentIndexChanged),&owner,[this](int){RefreshRemotePlot();});
+        QObject::connect(remote_plot_export,&QPushButton::clicked,&owner,[this]{ExportRemotePlot();});
+        ResetRemotePlot();
         auto* action_layout=qobject_cast<QVBoxLayout*>(panels[7].page->layout());activity_list=new QListWidget;activity_list->setObjectName("remoteActivities");action_layout->addWidget(activity_list);cancel=new QPushButton("Cancel selected Goal (ACK is not terminal)");action_layout->addWidget(cancel);activity_status=Label();action_layout->addWidget(activity_status);
         feedback=std::make_unique<Form>(panels[7].page);result=std::make_unique<Form>(panels[7].page);action_layout->addWidget(new QLabel("Latest Feedback"));action_layout->addWidget(feedback->table);action_layout->addWidget(new QLabel("Terminal Result"));action_layout->addWidget(result->table);
         QObject::connect(activity_list,&QListWidget::currentRowChanged,&owner,[this]{ShowActivity();});
         QObject::connect(cancel,&QPushButton::clicked,&owner,[this]{if(panels[7].busy)return;auto* item=activity_list->currentItem();if(!item)return;auto it=activities.find(item->data(Qt::UserRole).toULongLong());if(it==activities.end()||it->second.communication_lost||it->second.terminal)return;RemoteCommand c;c.operation=RemoteOperation::Cancel;c.endpoint=it->second.endpoint;c.handle=it->first;c.timeout_ms=timeout->value();Submit(7,c);});
         QObject::connect(hosts,&QComboBox::currentIndexChanged,&owner,[this]{if(host_selected==hosts->currentData().toString())return;
             if(Dirty()&&QMessageBox::question(&owner,"Discard Remote edits","Discard unsent Remote field edits and change Host?")!=QMessageBox::Yes){QSignalBlocker block(hosts);hosts->setCurrentIndex(hosts->findData(host_selected));return;}
-            host_selected=hosts->currentData().toString();for(auto& p:panels){if(p.second.subscription){RemoteCommand cleanup;cleanup.operation=RemoteOperation::Unsubscribe;cleanup.handle=p.second.subscription;backend.SubmitRemote(cleanup);p.second.subscription=0;}Clear(p.second);}for(auto& stack:stacks)stack.second->setCurrentIndex(host_selected.isEmpty()?0:1);Populate();});
+            host_selected=hosts->currentData().toString();ResetRemotePlot();for(auto& p:panels){if(p.second.subscription){RemoteCommand cleanup;cleanup.operation=RemoteOperation::Unsubscribe;cleanup.handle=p.second.subscription;backend.SubmitRemote(cleanup);p.second.subscription=0;}Clear(p.second);}for(auto& stack:stacks)stack.second->setCurrentIndex(host_selected.isEmpty()?0:1);Populate();});
         QObject::connect(apply,&QPushButton::clicked,&owner,[this]{Configure(false);});
         graph.open_remote=[this](const GraphNode& node){auto host=hosts->findData(Text(node.host));if(host<0)return;hosts->setCurrentIndex(host);if(host_selected!=Text(node.host))return;
             if(node.kind==GraphKind::Host){tabs.setCurrentIndex(0);return;}if(node.kind==GraphKind::Element){tabs.setCurrentIndex(1);for(int i=0;i<elements->topLevelItemCount();++i)if(elements->topLevelItem(i)->data(0,Qt::UserRole+1).toString()==Text(node.id.substr(15)))elements->setCurrentItem(elements->topLevelItem(i));return;}
             const std::string prefix="remote-endpoint:";if(node.id.find(prefix)==0)Navigate(Text(node.id.substr(prefix.size())));};
         QObject::connect(&timer,&QTimer::timeout,&owner,[this]{Tick();});timer.start(100);Tick();
+    }
+    void RefreshRemotePlot(){
+        remote_plot_export->setEnabled(!remote_plot.Records().empty());
+        remote_plot_summary->setText(QString("Remote observed=%1 (retained max %2) | Unobserved sequence steps=%3 | Buffer evictions=%4 | Latest-only Poll; not full-rate capture or packet loss")
+            .arg(remote_plot.Observations()).arg(remote_plot.MAX_RECORDS)
+            .arg(remote_plot.UnobservedSequenceSteps()).arg(remote_plot.DroppedByCapacity()));
+        remote_plot_view->SetHistory(&remote_plot,remote_plot_field->currentIndex());
+    }
+    void ResetRemotePlot(){
+        remote_plot_handle=0;remote_plot_route=0;remote_plot.Reset();
+        {QSignalBlocker block(remote_plot_field);remote_plot_field->clear();}
+        remote_plot_field->setEnabled(false);RefreshRemotePlot();
+    }
+    void ObserveRemotePlot(const RemoteActivity& a){
+        if(!a.has_value||a.communication_lost||a.terminal||a.state!=1)return;
+        if(remote_plot_handle!=a.handle||remote_plot_route!=a.route_id){
+            ResetRemotePlot();remote_plot_handle=a.handle;remote_plot_route=a.route_id;
+            remote_plot.Reset(a.endpoint.name+" host="+a.endpoint.identity.host_id+" session="+
+                std::to_string(a.endpoint.session)+" route="+std::to_string(a.route_id),a.feedback.type_id);
+        }
+        const auto observed=remote_plot.Observe(a.feedback,a.observed_at);
+        if(observed==TopicPlotHistory::ObserveResult::NEW_SEGMENT||
+           (observed==TopicPlotHistory::ObserveResult::RECORDED&&remote_plot_field->count()==0)){
+            const auto previous=remote_plot_field->currentText();
+            {QSignalBlocker block(remote_plot_field);remote_plot_field->clear();
+                for(const auto& field:remote_plot.Fields())remote_plot_field->addItem(Text(field));
+                const int index=remote_plot_field->findText(previous);
+                if(index>=0)remote_plot_field->setCurrentIndex(index);
+            }
+            remote_plot_field->setEnabled(remote_plot_field->count()>0);
+        }
+        RefreshRemotePlot();
+    }
+    void ExportRemotePlot(){
+        if(remote_plot.Records().empty())return;
+        const QString path=QFileDialog::getSaveFileName(&owner,"Export Remote observed Topic samples",QString(),"CSV files (*.csv)");
+        if(path.isEmpty())return;
+        std::ofstream output(path.toStdString(),std::ios::binary|std::ios::trunc);
+        if(!output||!remote_plot.WriteCsv(output)||!output.flush()||!output.good())
+            QMessageBox::warning(&owner,"Remote Topic CSV export","Could not write the selected CSV file.");
     }
     bool Dirty()const {for(const auto& p:panels)if(p.second.input->dirty)return true;return false;}
     void Clear(Panel& p){++p.revision;p.selected={};p.input->Render({},false);p.output->Render({},false);p.metadata->clear();p.status->setText("Select a current Remote endpoint");}
@@ -166,6 +225,7 @@ struct RemoteWorkspace::Impl {
     void Select(int i,int row){auto& p=panels[i];if(row<0||row>=int(choices[i].size()))return;
         if(p.input->dirty&&QMessageBox::question(&owner,"Discard Remote edits","Discard unsent edits and select another endpoint?")!=QMessageBox::Yes){QSignalBlocker block(p.list);for(std::size_t j=0;j<choices[i].size();++j)if(Key(choices[i][j])==Key(p.selected))p.list->setCurrentRow(j);return;}
         if(p.subscription){RemoteCommand cleanup;cleanup.operation=RemoteOperation::Unsubscribe;cleanup.handle=p.subscription;backend.SubmitRemote(cleanup);p.subscription=0;}
+        if(i==2)ResetRemotePlot();
         Clear(p);p.selected=choices[i][row];p.metadata->setText(Text(p.selected.id)+QString("\nSession %1 | ").arg(p.selected.session)+Text(p.selected.scope+"\n"+p.selected.type));
         if(i!=2&&Current(p.selected)&&snapshot.remote_control_available&&p.selected.scope=="REMOTE")Request(i,i==3?RemoteOperation::Get:RemoteOperation::Prepare);
     }
@@ -189,7 +249,7 @@ struct RemoteWorkspace::Impl {
         NetworkOptions opts;const auto text=interfaces->currentText();opts.interface_address=(text==interfaces->itemText(interfaces->currentIndex())?interfaces->currentData().toString():text).toStdString();opts.port=port->value();opts.host_id=host_id->text().trimmed().toLower().toStdString();
         if(!shutdown&&!opts.host_id.empty()&&(!QRegularExpression("^[0-9a-f]{32}$").match(Text(opts.host_id)).hasMatch()||opts.host_id==std::string(32,'0'))){status->setText("Host ID must contain 32 hexadecimal digits and must not be zero");return;}
         if(!shutdown){QSettings settings("KCF","Tools");settings.setValue("network/controlHostId",Text(opts.host_id));}
-        ++epoch;for(auto& p:panels){Clear(p.second);p.second.subscription=0;}for(auto& a:activities){a.second.communication_lost=true;a.second.execution_unknown=!a.second.terminal;}
+        ++epoch;ResetRemotePlot();for(auto& p:panels){Clear(p.second);p.second.subscription=0;}for(auto& a:activities){a.second.communication_lost=true;a.second.execution_unknown=!a.second.terminal;}
         const bool start=!shutdown&&enabled->isChecked();configuration_shutdown=shutdown;apply->setEnabled(false);configuration=std::async(std::launch::async,[this,opts,start]{return backend.ConfigureNetwork(opts,start);});
     }
     void ShowActivity(){auto* item=activity_list->currentItem();if(!item){cancel->setEnabled(false);return;}auto it=activities.find(item->data(Qt::UserRole).toULongLong());if(it==activities.end())return;auto& a=it->second;if(!Current(a.endpoint))a.communication_lost=true;
@@ -214,7 +274,7 @@ struct RemoteWorkspace::Impl {
         using namespace std::chrono_literals;
         if(configuration.valid()&&configuration.wait_for(0ms)==std::future_status::ready){int code=configuration.get();configuration_status="Network settings: "+Error(code);status->setText(configuration_status);apply->setEnabled(true);if(closing){if(configuration_shutdown){closed=true;owner.window()->close();return;}Configure(true);return;}}
         auto next=backend.GetNetworkSnapshot();
-        if(next.observer_host!=snapshot.observer_host){++epoch;for(auto& entry:panels){Clear(entry.second);entry.second.subscription=0;}rates.clear();tree_signature.clear();applications->clear();elements->clear();}
+        if(next.observer_host!=snapshot.observer_host){ResetRemotePlot();++epoch;for(auto& entry:panels){Clear(entry.second);entry.second.subscription=0;}rates.clear();tree_signature.clear();applications->clear();elements->clear();}
         snapshot=std::move(next);
         Populate();
         if(activity_list->currentItem())ShowActivity();
@@ -247,9 +307,27 @@ struct RemoteWorkspace::Impl {
                         const double dt=std::chrono::duration<double>(a.observed_at-rate.at).count();
                         if(dt>=0.5){rate.hz=(a.received_packets-rate.packets)/dt;rate.at=a.observed_at;rate.packets=a.received_packets;}hz=rate.hz;
                     }else rates.erase(a.handle);
-                    if(a.has_value)p.output->Render(a.feedback,false);else if(a.communication_lost||a.terminal){p.output->Render({},false);rates.erase(a.handle);}
+                    if(a.has_value&&!a.communication_lost&&!a.terminal){
+                        p.output->Render(a.feedback,false);ObserveRemotePlot(a);
+                    }else if(a.communication_lost||a.terminal){
+                        p.output->Render({},false);rates.erase(a.handle);
+                        // Preserve the last observed plot so the user can export it.
+                    }
                     static const char* topic_states[]={"WAITING_ROUTE","ACTIVE","LOST","STALE","ERROR","CLOSED"};
-                    p.status->setText(QString("Topic state=%1 | Sequence=%2 | Receive Hz=%3 | %4%5").arg(a.state>=0&&a.state<6?topic_states[a.state]:"UNKNOWN").arg(a.sequence).arg(a.communication_lost||a.terminal?"Unavailable":hz<0?"Measuring":QString::number(hz,'f',2)).arg(Error(a.error)).arg(a.communication_lost?" | LOST/stale; retained handle must be unsubscribed":""));
+                    QString route_text=" | Sender route diagnostics: Unavailable (no verified current route)";
+                    const auto now_unix_ms=static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch());
+                    if(const auto* sender=FindRemoteTopicSenderRoute(snapshot,a,now_unix_ms)){
+                        static const char* route_states[]={"WAITING_SUBSCRIBER","ACTIVE","REJECTED","CLOSED"};
+                        route_text=QString(" | Sender route=%1 (%2) | sender error=%3 | reason_code=%4 | sent=%5 | local_skipped=%6")
+                            .arg(sender->route_id)
+                            .arg(sender->state<4?route_states[sender->state]:"UNKNOWN")
+                            .arg(sender->error).arg(sender->reason)
+                            .arg(sender->packets_sent).arg(sender->local_samples_skipped);
+                        if(sender->rates.status==NetworkRateState::VALID)
+                            route_text+=QString(" | Sender Hz=%1").arg(sender->rates.send_hz,0,'f',2);
+                        else route_text+=" | Sender Hz=Measuring";
+                    }
+                    p.status->setText(QString("Topic state=%1 | Sequence=%2 | Receive Hz=%3 | %4%5").arg(a.state>=0&&a.state<6?topic_states[a.state]:"UNKNOWN").arg(a.sequence).arg(a.communication_lost||a.terminal?"Unavailable":hz<0?"Measuring":QString::number(hz,'f',2)).arg(Error(a.error)).arg(a.communication_lost?" | LOST/stale; retained handle must be unsubscribed":"")+route_text);
                 }else activities[a.handle]=std::move(a);}
             for(auto it=activities.begin();activities.size()>128&&it!=activities.end();)if(it->second.terminal||it->second.communication_lost)it=activities.erase(it);else ++it;
             QSignalBlocker block(activity_list);auto selected=activity_list->currentItem()?activity_list->currentItem()->data(Qt::UserRole).toULongLong():0;activity_list->clear();for(auto& a:activities){auto* item=new QListWidgetItem(Text(a.second.endpoint.name+" | "+a.second.endpoint.identity.host_id)+QString(" | Goal handle %1").arg(a.first),activity_list);item->setData(Qt::UserRole,qulonglong(a.first));if(a.first==selected)activity_list->setCurrentItem(item);}ShowActivity();

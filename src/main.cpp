@@ -10,7 +10,12 @@ int main(int argc, char* argv[]) {
     QCommandLineParser parser;
     parser.setApplicationDescription("KCF Tool");
     parser.addHelpOption();
-    parser.addOption({"backend", "Backend: mock or kcf", "name", "mock"});
+#ifdef KCF_TOOL_PACKAGE_DEFAULT_KCF
+    constexpr const char* default_backend = "kcf";
+#else
+    constexpr const char* default_backend = "mock";
+#endif
+    parser.addOption({"backend", "Backend: mock or kcf", "name", default_backend});
     parser.addOption({"no-network", "Disable read-only Network discovery"});
     parser.addOption({"network-interface", "Discovery IPv4 interface", "address", "0.0.0.0"});
     parser.addOption({"network-port", "Discovery UDP port", "port", "37651"});

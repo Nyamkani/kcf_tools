@@ -1,5 +1,6 @@
 #pragma once
 #include "kcf_tool/backend/tool_backend.hpp"
+#include "kcf_tool/model/topic_plot_history.hpp"
 #include <QMainWindow>
 #include <array>
 #include <chrono>
@@ -15,8 +16,11 @@ class QPushButton;
 class QTableWidget;
 class QTimer;
 class QCloseEvent;
+class QComboBox;
 class QThread;
 class QTabWidget;
+namespace kcf_tool { class TopicPlotWidget; }
+
 
 namespace kcf_tool {
 class GraphWidget;
@@ -32,6 +36,8 @@ private:
     void StartEcho();
     void StopEcho();
     void PollEcho();
+    void ExportTopicPlot();
+    void UpdateTopicPlot();
     void Refresh();
     void ShowElement();
     void UpdateExplorer();
@@ -100,6 +106,11 @@ private:
     QLabel* topic_identity_;
     QTableWidget* echo_table_;
     QTimer* echo_timer_;
+    QComboBox* topic_plot_field_{nullptr};
+    QPushButton* topic_plot_export_{nullptr};
+    QLabel* topic_plot_summary_{nullptr};
+    TopicPlotWidget* topic_plot_view_{nullptr};
+    TopicPlotHistory topic_plot_history_;
     std::deque<std::pair<std::chrono::steady_clock::time_point, std::uint64_t>> echo_rate_history_;
     bool echo_requires_refresh_{false};
     bool discovery_refreshed_{false};
