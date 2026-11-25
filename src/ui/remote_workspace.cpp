@@ -314,7 +314,20 @@ struct RemoteWorkspace::Impl {
                         // Preserve the last observed plot so the user can export it.
                     }
                     static const char* topic_states[]={"WAITING_ROUTE","ACTIVE","LOST","STALE","ERROR","CLOSED"};
-                    p.status->setText(QString("Topic state=%1 | Sequence=%2 | Receive Hz=%3 | %4%5").arg(a.state>=0&&a.state<6?topic_states[a.state]:"UNKNOWN").arg(a.sequence).arg(a.communication_lost||a.terminal?"Unavailable":hz<0?"Measuring":QString::number(hz,'f',2)).arg(Error(a.error)).arg(a.communication_lost?" | LOST/stale; retained handle must be unsubscribed":""));
+                    QString route_text=" | Sender route diagnostics: Unavailable (no verified current route)";
+                    const auto now_unix_ms=static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch());
+                    if(const auto* sender=FindRemoteTopicSenderRoute(snapshot,a,now_unix_ms)){
+                        static const char* route_states[]={"WAITING_SUBSCRIBER","ACTIVE","REJECTED","CLOSED"};
+                        route_text=QString(" | Sender route=%1 (%2) | sender error=%3 | reason_code=%4 | sent=%5 | local_skipped=%6")
+                            .arg(sender->route_id)
+                            .arg(sender->state<4?route_states[sender->state]:"UNKNOWN")
+                            .arg(sender->error).arg(sender->reason)
+                            .arg(sender->packets_sent).arg(sender->local_samples_skipped);
+                        if(sender->rates.status==NetworkRateState::VALID)
+                            route_text+=QString(" | Sender Hz=%1").arg(sender->rates.send_hz,0,'f',2);
+                        else route_text+=" | Sender Hz=Measuring";
+                    }
+                    p.status->setText(QString("Topic state=%1 | Sequence=%2 | Receive Hz=%3 | %4%5").arg(a.state>=0&&a.state<6?topic_states[a.state]:"UNKNOWN").arg(a.sequence).arg(a.communication_lost||a.terminal?"Unavailable":hz<0?"Measuring":QString::number(hz,'f',2)).arg(Error(a.error)).arg(a.communication_lost?" | LOST/stale; retained handle must be unsubscribed":"")+route_text);
                 }else activities[a.handle]=std::move(a);}
             for(auto it=activities.begin();activities.size()>128&&it!=activities.end();)if(it->second.terminal||it->second.communication_lost)it=activities.erase(it);else ++it;
             QSignalBlocker block(activity_list);auto selected=activity_list->currentItem()?activity_list->currentItem()->data(Qt::UserRole).toULongLong():0;activity_list->clear();for(auto& a:activities){auto* item=new QListWidgetItem(Text(a.second.endpoint.name+" | "+a.second.endpoint.identity.host_id)+QString(" | Goal handle %1").arg(a.first),activity_list);item->setData(Qt::UserRole,qulonglong(a.first));if(a.first==selected)activity_list->setCurrentItem(item);}ShowActivity();
