@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends qt6-base-dev nlohmann-json3-dev
+          sudo apt-get install -y --no-install-recommends qt6-base-dev nlohmann-json3-dev iproute2 util-linux
       - name: Configure
         run: cmake -S . -B build -DKCF_TOOL_BUILD_GUI=ON -DKCF_TOOL_BUILD_TESTS=ON -DKCF_SOURCE_DIR="${GITHUB_WORKSPACE}/core" -DCMAKE_BUILD_TYPE=Debug
       - name: Build Tools real backend and UX tests
@@ -28,8 +28,22 @@ jobs:
           cmake --build build --parallel 4 --target \
             kcf_tool kcf_tool_topic_plot_history kcf_tool_smoke \
             kcf_tool_real_fixture kcf_tool_real_backend kcf_tool_real_smoke \
-            kcf_tool_value_codec kcf_tool_network_backend
+            kcf_tool_value_codec kcf_tool_network_backend kcf_tool_network_diagnostics \
+            kcf_tool_network_e2e_fixture kcf_tool_remote_workspace
       - name: Local history and GUI smoke
         run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^(kcf_tool_topic_plot_history|kcf_tool_smoke)$' --output-on-failure
       - name: Core-linked real backend, numeric codec and network regression
-        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^(kcf_tool_real_backend|kcf_tool_real_backend_depth4|kcf_tool_real_smoke|kcf_tool_real_smoke_depth4|kcf_tool_value_codec|kcf_tool_network_backend)$' --output-on-failure
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build -R '^(kcf_tool_real_backend|kcf_tool_real_backend_depth4|kcf_tool_real_smoke|kcf_tool_real_smoke_depth4|kcf_tool_value_codec|kcf_tool_network_backend|kcf_tool_network_diagnostics) --output-on-failure
+ --output-on-failure
+      - name: Virtual LAN Remote Topic and GUI E2E (isolated namespace)
+        run: |
+          set -e
+          mkdir -p build/remote-lan-e2e
+          if sudo unshare --net --ipc --mount --pid --fork --mount-proc true; then
+            sudo env QT_QPA_PLATFORM=offscreen \
+              unshare --net --ipc --mount --pid --fork --mount-proc \
+              python3 tests/remote_control_e2e.py "${GITHUB_WORKSPACE}/core" "${GITHUB_WORKSPACE}/build" "${GITHUB_WORKSPACE}/build/remote-lan-e2e"
+            echo "Virtual LAN Remote Topic/Plot/Diagnostics: VERIFIED PASS"
+          else
+            echo "::warning::Virtual LAN Remote Topic/Plot/Diagnostics: UNVERIFIED — runner prohibits isolated network namespaces"
+          fi
